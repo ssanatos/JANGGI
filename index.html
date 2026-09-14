@@ -373,6 +373,13 @@
       <div id="thinkPanelText" style="font-size:12px; color:#c9b491; margin-top:8px; line-height:1.6;"></div>
     </div>
     <div class="panel-box">
+      <div style="display:flex; gap:8px;">
+        <button class="btn secondary small" id="studyToggleBtn" style="flex:1;">형세 학습</button>
+        <button class="btn secondary small" id="blinkToggleBtn" style="flex:1;">깜빡임</button>
+      </div>
+      <p class="setup-hint" style="margin-top:8px;">차·포·마·상이 지금 갈 수 있는 자리를 판 위에 옅게 겹쳐 보여줍니다(차·포는 칸 표시, 마·상은 도달 거리만큼의 부채꼴). 형세 학습은 계속 켜두고, 깜빡임은 2초 보였다 5초 숨었다를 반복합니다.</p>
+    </div>
+    <div class="panel-box">
       <button class="btn secondary small" id="editBoardBtn" style="width:100%;">임의 배치</button>
       <div id="editPanel" hidden style="margin-top:10px;">
         <p class="setup-hint">기물을 고른 뒤 판의 칸을 눌러 놓으세요(이미 있는 기물 위도 덮어쓸 수 있어요). '지우기'를 고르고 칸을 누르면 기물을 치웁니다. 잡혀서 빠진 기물도 자유롭게 다시 놓을 수 있어요.</p>
@@ -5445,6 +5452,8 @@ self.onmessage = (e) => {
 </script>
 
 
+
+
 <script>
 "use strict";
 /* =========================================================
@@ -5939,7 +5948,7 @@ async function initStockfish() {
   sfState = 'loading';
   updateEngineLabel();
 
-  // 1순위: 이 파일에 임베드된 로컬 엔진 (25MB 가량의 wasm을 base64 디코딩 +
+  // 1순위: 이 파일에 임베드된 로컬 엔진 (12MB 가량의 wasm을 base64 디코딩 +
   // 컴파일해야 하므로 넉넉하게 40초까지 대기)
   let sf = await loadEmbeddedStockfish(40000);
   let usedEmbedded = !!sf;
@@ -6103,6 +6112,10 @@ const PIECE_LABEL = {
 };
 
 let state = null; // 게임 상태 객체
+let studyOn = false;   // 형세 학습: 계속 표시
+let blinkOn = false;   // 깜빡임: 2초 표시 / 5초 숨김 반복
+let blinkVisible = false;
+let blinkTimer = null;
 
 function px(c) { return MARGIN + c * DX; }
 function py(r) { return MARGIN + r * DY; }
@@ -6203,6 +6216,7 @@ function buildBoardStatic(svg) {
 
   // 클릭용 히트 레이어 + 기물 레이어 컨테이너
   const hitLayer = svgns('g'); hitLayer.setAttribute('id','hitLayer');
+  const studyLayer = svgns('g'); studyLayer.setAttribute('id','studyLayer'); studyLayer.setAttribute('pointer-events','none');
   const markLayer = svgns('g'); markLayer.setAttribute('id','markLayer');
   const pieceLayer = svgns('g'); pieceLayer.setAttribute('id','pieceLayer');
 
@@ -6219,6 +6233,7 @@ function buildBoardStatic(svg) {
       hitLayer.appendChild(hit);
     }
   }
+  svg.appendChild(studyLayer);
   svg.appendChild(markLayer);
   svg.appendChild(pieceLayer);
   svg.appendChild(hitLayer);
@@ -6277,6 +6292,160 @@ function renderPieces() {
   }
 
   updateEvalPanel();
+  refreshStudyOverlay();
+}
+
+/* ---------------------------------------------------------
+   형세 학습(Position Study) 오버레이
+   - 차/포: 갈 수 있는 각 칸에 칸 크기의 사각형을 10% 불투명도로 표시
+   - 마/상: 자신이 도달 가능한 거리를 반지름으로 하는 원을, 실제로 갈 수
+     있는 방향의 부채꼴(파이 조각)만 10% 불투명도로 표시. 멱이 막히거나
+     보드 밖으로 나가거나 자기 편 기물이 있어 못 가는 방향은 비워 둔다
+     (잘려나간 파이 모양). 같은 색이 겹치면 알파 블렌딩으로 자연스럽게
+     더 짙게 보인다.
+   --------------------------------------------------------- */
+const STUDY_COLOR = { cho: '#22a86b', han: '#e21e14' };
+
+function pieceReachRadiusCells(type) {
+  return type === 'H' ? Math.sqrt(5) : Math.sqrt(13); // 마: sqrt(1²+2²) 칸, 상: sqrt(2²+3²) 칸
+}
+
+// 이 방향 벡터가 화면(뒤집힘 반영)에서 가리키는 실제 각도
+function screenAngleOfOffset(r, c, dr, dc) {
+  const dx = sx(c + dc) - sx(c);
+  const dy = sy(r + dr) - sy(r);
+  return Math.atan2(dy, dx);
+}
+
+// 8방향을 화면 각도 기준으로 정렬해, 인접한 두 방향의 중간각을 경계로
+// 삼아 원을 정확히 8조각으로 나눈다(마/상의 실제 방향 각도는 45도씩
+// 균등하지 않으므로 이렇게 해야 조각이 겹치거나 비지 않는다).
+function buildKnightWedges(r, c, offsets) {
+  const withAngle = offsets.map(off => ({ off, angle: screenAngleOfOffset(r, c, off.d[0], off.d[1]) }));
+  withAngle.sort((a, b) => a.angle - b.angle);
+  const n = withAngle.length;
+  const wedges = [];
+  for (let i = 0; i < n; i++) {
+    const cur = withAngle[i].angle;
+    const prevAngle = withAngle[(i - 1 + n) % n].angle - (i === 0 ? 2 * Math.PI : 0);
+    const nextAngle = withAngle[(i + 1) % n].angle + (i === n - 1 ? 2 * Math.PI : 0);
+    wedges.push({ off: withAngle[i].off, a0: (prevAngle + cur) / 2, a1: (cur + nextAngle) / 2 });
+  }
+  return wedges;
+}
+
+function computeStudyOverlayData(board) {
+  const squares = []; // {r,c,side}
+  const wedgeGroups = []; // {r,c,side,radiusPx,wedges:[{a0,a1}]}
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      if (p.type === 'R' || p.type === 'C') {
+        const mv = genPieceMoves(board, r, c);
+        for (const m of mv) squares.push({ r: m.r, c: m.c, side: p.side });
+      } else if (p.type === 'H' || p.type === 'E') {
+        const offsets = p.type === 'H' ? HORSE_OFFSETS : ELEPHANT_OFFSETS;
+        const reachable = genPieceMoves(board, r, c);
+        const wedgesAll = buildKnightWedges(r, c, offsets);
+        const radiusPx = pieceReachRadiusCells(p.type) * DX;
+        const openWedges = wedgesAll.filter(w =>
+          reachable.some(m => m.r === r + w.off.d[0] && m.c === c + w.off.d[1])
+        );
+        if (openWedges.length) wedgeGroups.push({ r, c, side: p.side, radiusPx, wedges: openWedges });
+      }
+    }
+  }
+  return { squares, wedgeGroups };
+}
+
+function renderStudyOverlay(board) {
+  const layer = document.getElementById('boardSvg').querySelector('#studyLayer');
+  if (!layer) return;
+  layer.innerHTML = '';
+  const { squares, wedgeGroups } = computeStudyOverlayData(board);
+
+  const half = DX / 2;
+  for (const s of squares) {
+    const rect = svgns('rect');
+    rect.setAttribute('x', sx(s.c) - half);
+    rect.setAttribute('y', sy(s.r) - half);
+    rect.setAttribute('width', DX);
+    rect.setAttribute('height', DY);
+    rect.setAttribute('fill', STUDY_COLOR[s.side]);
+    rect.setAttribute('fill-opacity', '0.1');
+    layer.appendChild(rect);
+  }
+
+  for (const g of wedgeGroups) {
+    const cx = sx(g.c), cy = sy(g.r);
+    for (const w of g.wedges) {
+      const x0 = cx + g.radiusPx * Math.cos(w.a0), y0 = cy + g.radiusPx * Math.sin(w.a0);
+      const x1 = cx + g.radiusPx * Math.cos(w.a1), y1 = cy + g.radiusPx * Math.sin(w.a1);
+      const largeArc = (w.a1 - w.a0) > Math.PI ? 1 : 0;
+      const path = svgns('path');
+      path.setAttribute('d', `M ${cx} ${cy} L ${x0} ${y0} A ${g.radiusPx} ${g.radiusPx} 0 ${largeArc} 1 ${x1} ${y1} Z`);
+      path.setAttribute('fill', STUDY_COLOR[g.side]);
+      path.setAttribute('fill-opacity', '0.1');
+      layer.appendChild(path);
+    }
+  }
+}
+
+function clearStudyOverlay() {
+  const layer = document.getElementById('boardSvg').querySelector('#studyLayer');
+  if (layer) layer.innerHTML = '';
+}
+
+function isStudyVisibleNow() {
+  return studyOn || (blinkOn && blinkVisible);
+}
+
+function refreshStudyOverlay() {
+  if (!state) { clearStudyOverlay(); return; }
+  if (isStudyVisibleNow()) renderStudyOverlay(state.board);
+  else clearStudyOverlay();
+}
+
+function stopBlinkCycle() {
+  if (blinkTimer) { clearTimeout(blinkTimer); blinkTimer = null; }
+}
+
+function scheduleNextBlink() {
+  stopBlinkCycle();
+  if (!blinkOn) return;
+  blinkTimer = setTimeout(() => {
+    blinkVisible = !blinkVisible;
+    refreshStudyOverlay();
+    scheduleNextBlink();
+  }, blinkVisible ? 2000 : 5000);
+}
+
+function updateStudyButtons() {
+  const sb = document.getElementById('studyToggleBtn');
+  const bb = document.getElementById('blinkToggleBtn');
+  if (sb) sb.classList.toggle('edit-tool-active', studyOn);
+  if (bb) bb.classList.toggle('edit-tool-active', blinkOn);
+}
+
+function toggleStudy() {
+  studyOn = !studyOn;
+  updateStudyButtons();
+  refreshStudyOverlay();
+}
+
+function toggleBlink() {
+  blinkOn = !blinkOn;
+  if (blinkOn) {
+    blinkVisible = true; // 켜자마자 2초 보여주고 시작
+    refreshStudyOverlay();
+    scheduleNextBlink();
+  } else {
+    stopBlinkCycle();
+    blinkVisible = false;
+    refreshStudyOverlay();
+  }
+  updateStudyButtons();
 }
 
 function buildPieceGroup(p) {
@@ -7263,6 +7432,8 @@ updateRoleLabels();
 // 초기화가 끝나기 전이거나 실패한 경우에만 ssanatos Worker/내장 엔진이 대신 둔다.
 initStockfish();
 
+document.getElementById('studyToggleBtn').addEventListener('click', () => toggleStudy());
+document.getElementById('blinkToggleBtn').addEventListener('click', () => toggleBlink());
 document.getElementById('thinkViewBtn').addEventListener('click', async () => {
   if (!state || state.gameOver || state.aiThinking || state.editMode) return;
   const btn = document.getElementById('thinkViewBtn');
