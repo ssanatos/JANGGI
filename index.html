@@ -190,7 +190,7 @@
     border-radius:10px;
     box-shadow:0 14px 34px rgba(0,0,0,0.5), inset 0 0 0 1px #6b4726;
   }
-  #boardSvg{ display:block; width:min(560px, 90vw); height:auto; touch-action:manipulation; }
+  #boardSvg{ display:block; width:min(560px, 90vw); height:auto; touch-action:none; }
 
   #sidePanel{
     width:280px;
@@ -6334,6 +6334,85 @@ function buildKnightWedges(r, c, offsets) {
   return wedges;
 }
 
+// 형세 학습 오버레이 전용: "이동 가능한 칸"이 아니라 "영향권"을 계산한다.
+// genPieceMoves와 달리 자기 편 기물이 있다고 걸러내지 않고, 슬라이딩(차/포)은
+// 막히는 첫 기물까지(그 칸 포함) 표시하고 멈추며, 마/상은 멱/눈만 막히지
+// 않으면 목적지에 뭐가 있든(내 기물이든 상대 기물이든) 포함한다.
+function genPieceInfluence(board, r, c) {
+  const piece = board[r][c];
+  if (!piece) return [];
+  const { type } = piece;
+  const sq = [];
+
+  if (type === 'H') {
+    for (const off of HORSE_OFFSETS) {
+      const lr = r + off.leg[0], lc = c + off.leg[1];
+      if (!inBoard(lr, lc) || pieceAt(board, lr, lc)) continue;
+      const nr = r + off.d[0], nc = c + off.d[1];
+      if (inBoard(nr, nc)) sq.push({ r: nr, c: nc });
+    }
+  } else if (type === 'E') {
+    for (const off of ELEPHANT_OFFSETS) {
+      const lr = r + off.leg[0], lc = c + off.leg[1];
+      if (!inBoard(lr, lc) || pieceAt(board, lr, lc)) continue;
+      const er = r + off.eye[0], ec = c + off.eye[1];
+      if (!inBoard(er, ec) || pieceAt(board, er, ec)) continue;
+      const nr = r + off.d[0], nc = c + off.d[1];
+      if (inBoard(nr, nc)) sq.push({ r: nr, c: nc });
+    }
+  } else if (type === 'R') {
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const [dr, dc] of dirs) {
+      let nr = r + dr, nc = c + dc;
+      while (inBoard(nr, nc)) {
+        sq.push({ r: nr, c: nc });
+        if (pieceAt(board, nr, nc)) break; // 기물을 만나면 그 칸까지 포함하고 멈춤
+        nr += dr; nc += dc;
+      }
+    }
+    for (const { line, idx } of findDiagLines(r, c)) {
+      for (const dir of [-1, 1]) {
+        let ni = idx + dir;
+        while (ni >= 0 && ni < line.length) {
+          const p2 = line[ni];
+          sq.push({ r: p2.r, c: p2.c });
+          if (pieceAt(board, p2.r, p2.c)) break;
+          ni += dir;
+        }
+      }
+    }
+  } else if (type === 'C') {
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const [dr, dc] of dirs) {
+      let nr = r + dr, nc = c + dc;
+      let screenFound = false;
+      while (inBoard(nr, nc)) {
+        const p = pieceAt(board, nr, nc);
+        if (!screenFound) {
+          if (p) { if (p.type === 'C') break; screenFound = true; }
+        } else if (p) {
+          if (p.type !== 'C') sq.push({ r: nr, c: nc }); // 포는 포를 넘거나 잡을 수 없음(실제 규칙 유지)
+          break;
+        } else {
+          sq.push({ r: nr, c: nc });
+        }
+        nr += dr; nc += dc;
+      }
+    }
+    for (const { line, idx } of findDiagLines(r, c)) {
+      if (idx !== 0 && idx !== 2) continue;
+      const mid = line[1];
+      const midPiece = pieceAt(board, mid.r, mid.c);
+      if (!midPiece || midPiece.type === 'C') continue;
+      const farIdx = idx === 0 ? 2 : 0;
+      const far = line[farIdx];
+      const farPiece = pieceAt(board, far.r, far.c);
+      if (!farPiece || farPiece.type !== 'C') sq.push({ r: far.r, c: far.c });
+    }
+  }
+  return sq;
+}
+
 function computeStudyOverlayData(board) {
   const squares = []; // {r,c,side}
   const wedgeGroups = []; // {r,c,side,radiusPx,wedges:[{a0,a1}]}
@@ -6342,15 +6421,15 @@ function computeStudyOverlayData(board) {
       const p = board[r][c];
       if (!p) continue;
       if (p.type === 'R' || p.type === 'C') {
-        const mv = genPieceMoves(board, r, c);
-        for (const m of mv) squares.push({ r: m.r, c: m.c, side: p.side });
+        const influence = genPieceInfluence(board, r, c);
+        for (const s of influence) squares.push({ r: s.r, c: s.c, side: p.side });
       } else if (p.type === 'H' || p.type === 'E') {
         const offsets = p.type === 'H' ? HORSE_OFFSETS : ELEPHANT_OFFSETS;
-        const reachable = genPieceMoves(board, r, c);
+        const influence = genPieceInfluence(board, r, c);
         const wedgesAll = buildKnightWedges(r, c, offsets);
         const radiusPx = pieceReachRadiusCells(p.type) * DX;
         const openWedges = wedgesAll.filter(w =>
-          reachable.some(m => m.r === r + w.off.d[0] && m.c === c + w.off.d[1])
+          influence.some(s => s.r === r + w.off.d[0] && s.c === c + w.off.d[1])
         );
         if (openWedges.length) wedgeGroups.push({ r, c, side: p.side, radiusPx, wedges: openWedges });
       }
@@ -6373,7 +6452,7 @@ function renderStudyOverlay(board) {
     rect.setAttribute('width', DX);
     rect.setAttribute('height', DY);
     rect.setAttribute('fill', STUDY_COLOR[s.side]);
-    rect.setAttribute('fill-opacity', '0.1');
+    rect.setAttribute('fill-opacity', '0.15');
     layer.appendChild(rect);
   }
 
@@ -6386,7 +6465,7 @@ function renderStudyOverlay(board) {
       const path = svgns('path');
       path.setAttribute('d', `M ${cx} ${cy} L ${x0} ${y0} A ${g.radiusPx} ${g.radiusPx} 0 ${largeArc} 1 ${x1} ${y1} Z`);
       path.setAttribute('fill', STUDY_COLOR[g.side]);
-      path.setAttribute('fill-opacity', '0.1');
+      path.setAttribute('fill-opacity', '0.15');
       layer.appendChild(path);
     }
   }
@@ -7339,6 +7418,7 @@ function attachEditDragHandlers(svg) {
     const r = parseInt(target.dataset.r, 10), c = parseInt(target.dataset.c, 10);
     const piece = state.board[r][c];
     if (!piece) return; // 빈 칸은 드래그 시작 없음 — 기존 클릭 배치가 처리
+    e.preventDefault();
 
     const startPt = svgPointFromEvent(svg, e);
     dragState = { fromR: r, fromC: c, piece, moved: false, startPt, lastPt: startPt, pointerId: e.pointerId };
@@ -7355,6 +7435,7 @@ function attachEditDragHandlers(svg) {
 
   svg.addEventListener('pointermove', (e) => {
     if (!dragState) return;
+    e.preventDefault();
     const p = svgPointFromEvent(svg, e);
     dragState.lastPt = p;
     if (!dragState.moved && Math.hypot(p.x - dragState.startPt.x, p.y - dragState.startPt.y) > 6) {

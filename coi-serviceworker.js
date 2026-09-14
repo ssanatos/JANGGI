@@ -20,7 +20,13 @@ self.addEventListener('fetch', function (event) {
       if (response.status === 0) return response;
 
       const newHeaders = new Headers(response.headers);
-      newHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
+      // require-corp는 모든 교차 출처 리소스가 CORP 헤더를 갖고 있어야만
+      // 통과시키는데, 쿠팡 파트너스 광고 스크립트가 불러오는 리소스들은
+      // 그 헤더가 없어서 require-corp 아래서는 조용히 차단된다.
+      // credentialless는 스레드용 cross-origin isolation은 동일하게 제공하면서,
+      // 협조하지 않는 교차 출처 리소스는 자격증명(쿠키 등) 없이 익명으로라도
+      // 통과시켜 준다 — 광고/서드파티 스크립트와 공존 가능.
+      newHeaders.set('Cross-Origin-Embedder-Policy', 'credentialless');
       newHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
       return new Response(response.body, {
         status: response.status,
