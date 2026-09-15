@@ -137,6 +137,63 @@
     color:#fff;
   }
   .setup-hint{font-size:12px;color:var(--muted); margin-top:6px; line-height:1.5;}
+
+  /* ── 진영/배치 설정 위젯 ── */
+  #sideSetupWidget{ display:flex; flex-direction:column; align-items:center; gap:8px; }
+  #sideSetupWidget .ssw-label{
+    font-family:'Song Myung', serif; font-size:20px; color:var(--ink-gold);
+    letter-spacing:0.05em;
+  }
+  .ssw-board{
+    position:relative;
+    width:min(360px, 82vw); height:173px;
+    border:2px solid var(--ink-gold);
+    border-radius:6px;
+    background:linear-gradient(135deg, #dcb26f 0%, var(--board-base) 50%, #b98a4d 100%);
+  }
+  .ssw-corner{ position:absolute; }
+  .ssw-tl{ top:14px; left:14px; }
+  .ssw-tr{ top:14px; right:14px; }
+  .ssw-bl{ bottom:14px; left:14px; }
+  .ssw-br{ bottom:14px; right:14px; }
+  .ssw-pill{
+    font-family:'Noto Serif KR', serif; font-weight:900; font-size:24px;
+    padding:12px 21px; border-radius:999px; cursor:pointer;
+    background:linear-gradient(180deg, #fffdf7 0%, var(--paper) 55%, var(--paper-2) 100%);
+    border:2px solid currentColor;
+    box-shadow:
+      0 3px 0 rgba(0,0,0,0.28),
+      0 5px 8px rgba(0,0,0,0.35),
+      inset 0 1px 0 rgba(255,255,255,0.9);
+    display:flex; gap:8px; letter-spacing:0.05em;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .ssw-pill:hover{ transform:translateY(-1px) scale(1.05); }
+  .ssw-pill:active{
+    transform:translateY(2px);
+    box-shadow:0 1px 0 rgba(0,0,0,0.28), inset 0 1px 3px rgba(0,0,0,0.25);
+  }
+  .ssw-pill.ssw-han{ color:var(--han-red); }
+  .ssw-pill.ssw-cho{ color:var(--cho-green); }
+  .ssw-rotate{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:84px; height:84px; border-radius:50%;
+    background:radial-gradient(circle at 35% 28%, #fffdf7 0%, var(--paper) 45%, var(--paper-2) 100%);
+    border:2px solid var(--ink-gold);
+    color:#2c1c0e; display:flex; align-items:center; justify-content:center;
+    font-weight:900; font-size:33px; line-height:1;
+    box-shadow:
+      0 4px 0 rgba(0,0,0,0.3),
+      0 6px 10px rgba(0,0,0,0.4),
+      inset 0 1px 0 rgba(255,255,255,0.9);
+    cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .ssw-rotate:hover{ background:radial-gradient(circle at 35% 28%, #fff8e6 0%, #fff4dd 45%, var(--paper-2) 100%); }
+  .ssw-rotate:active{
+    transform:translate(-50%,-50%) translateY(2px);
+    box-shadow:0 1px 0 rgba(0,0,0,0.3), inset 0 2px 4px rgba(0,0,0,0.3);
+  }
   select, .btn{
     font-family:'Noto Sans KR', sans-serif;
   }
@@ -272,7 +329,7 @@
 <body>
 
 <header>
-  <h1>將 棋</h1>
+  <h1>논풀이 장기</h1>
   <p>전통 장기 · AI와 대국하기</p>
 </header>
 
@@ -290,38 +347,33 @@
 <!-- ===================== 설정 화면 ===================== -->
 <div id="setupScreen">
   <div class="setup-block">
-    <h3>플레이할 진영 선택</h3>
-    <div class="toggle-row">
-      <label><input type="radio" name="humanSideChoice" value="cho" checked> 초(楚) — 선공</label>
-      <label><input type="radio" name="humanSideChoice" value="han"> 한(漢) — 후공</label>
+    <h3>진영 · 배치 설정</h3>
+    <div id="sideSetupWidget">
+      <div class="ssw-label">AI</div>
+      <div class="ssw-board">
+        <div class="ssw-corner ssw-tl"><button type="button" class="ssw-pill" data-slot="top" data-part="left"></button></div>
+        <div class="ssw-corner ssw-tr"><button type="button" class="ssw-pill" data-slot="top" data-part="right"></button></div>
+        <button type="button" class="ssw-rotate" id="sswRotateBtn" title="선공/후공(초·한) 바꾸기">↑↓</button>
+        <div class="ssw-corner ssw-bl"><button type="button" class="ssw-pill" data-slot="bottom" data-part="left"></button></div>
+        <div class="ssw-corner ssw-br"><button type="button" class="ssw-pill" data-slot="bottom" data-part="right"></button></div>
+      </div>
+      <div class="ssw-label">당신</div>
     </div>
-    <p class="setup-hint">초가 항상 먼저 둡니다. 한을 고르면 AI가 첫 수를 먼저 둡니다.</p>
-  </div>
-
-  <div class="setup-block">
-    <h3><span class="side-dot cho"></span>초(楚) 배치 — <span id="choRoleLabel">당신</span></h3>
-    <div class="toggle-row" data-side="cho" data-part="left">
-      <label><input type="radio" name="choLeft" value="상마" checked> 좌: 상마</label>
-      <label><input type="radio" name="choLeft" value="마상"> 좌: 마상</label>
-    </div>
-    <div class="toggle-row" data-side="cho" data-part="right" style="margin-top:8px;">
-      <label><input type="radio" name="choRight" value="마상" checked> 우: 마상</label>
-      <label><input type="radio" name="choRight" value="상마"> 우: 상마</label>
-    </div>
-  </div>
-
-  <div class="setup-block">
-    <h3><span class="side-dot han"></span>한(漢) 배치 — <span id="hanRoleLabel">AI</span></h3>
-    <div class="toggle-row" data-side="han" data-part="left">
-      <label><input type="radio" name="hanLeft" value="상마" checked> 좌: 상마</label>
-      <label><input type="radio" name="hanLeft" value="마상"> 좌: 마상</label>
-    </div>
-    <div class="toggle-row" data-side="han" data-part="right" style="margin-top:8px;">
-      <label><input type="radio" name="hanRight" value="마상" checked> 우: 마상</label>
-      <label><input type="radio" name="hanRight" value="상마"> 우: 상마</label>
+    <p class="setup-hint">가운데 버튼을 누르면 선공/후공(초·한)이 바뀌고, 모서리의 마·상 버튼을 누르면 그 자리의 마·상 위치가 서로 바뀝니다.</p>
+    <!-- 기존 게임 시작 로직과의 호환을 위한 숨김 상태값(라디오) -->
+    <div style="display:none">
+      <input type="radio" name="humanSideChoice" value="cho" checked>
+      <input type="radio" name="humanSideChoice" value="han">
+      <input type="radio" name="choLeft" value="마상" checked>
+      <input type="radio" name="choLeft" value="상마">
+      <input type="radio" name="choRight" value="상마" checked>
+      <input type="radio" name="choRight" value="마상">
+      <input type="radio" name="hanLeft" value="마상" checked>
+      <input type="radio" name="hanLeft" value="상마">
+      <input type="radio" name="hanRight" value="상마" checked>
+      <input type="radio" name="hanRight" value="마상">
     </div>
   </div>
-  <p class="setup-hint">마(馬)와 상(象)의 좌우 위치를 대국 시작 전 정할 수 있어요. 초(green)가 먼저 둡니다.</p>
 
   <div class="setup-block">
     <h3>AI 난이도</h3>
@@ -6125,8 +6177,8 @@ function py(r) { return MARGIN + r * DY; }
 // 좌표"를 그대로 쓰고, 화면에 그릴 때(픽셀 좌표로 바꿀 때)만 뒤집는다.
 // 그래서 이동 생성/기보/undo 등 게임 로직은 전혀 손댈 필요가 없다.
 function isFlipped() { return !!(state && state.humanSide === 'han'); }
-function sx(c) { return px(isFlipped() ? COLS - 1 - c : c); }
-function sy(r) { return py(isFlipped() ? ROWS - 1 - r : r); }
+function sx(c) { return px(c); } // 좌우(열)는 절대 뒤집지 않음 — 배치가 회전과 무관하게 항상 그대로 보이도록
+function sy(r) { return py(isFlipped() ? ROWS - 1 - r : r); } // 위아래(행)만 바뀌어 '당신' 기물이 항상 화면 아래로
 
 function newGameState(choArr, hanArr, difficulty, humanSide) {
   const board = initialBoard(choArr, hanArr);
@@ -7471,8 +7523,8 @@ function attachEditDragHandlers(svg) {
 
    ========================================================= */
 function getArrangement(side) {
-  const left = document.querySelector(`input[name="${side}Left"]:checked`).value;
-  const right = document.querySelector(`input[name="${side}Right"]:checked`).value;
+  const left = currentArrangementValue(side + 'Left');
+  const right = currentArrangementValue(side + 'Right');
   return { left, right };
 }
 
@@ -7499,14 +7551,51 @@ document.getElementById('startBtn').addEventListener('click', () => {
   if (state.turn !== state.humanSide) aiTurn(); // AI가 선공(한)을 골랐을 경우 바로 첫 수 진행
 });
 
-function updateRoleLabels() {
-  const checked = document.querySelector('input[name="humanSideChoice"]:checked');
-  const val = checked ? checked.value : 'cho';
-  document.getElementById('choRoleLabel').textContent = val === 'cho' ? '당신' : 'AI';
-  document.getElementById('hanRoleLabel').textContent = val === 'han' ? '당신' : 'AI';
+function currentArrangementValue(name) {
+  const el = document.querySelector(`input[name="${name}"]:checked`);
+  return el ? el.value : null;
 }
-document.querySelectorAll('input[name="humanSideChoice"]').forEach(el => el.addEventListener('change', updateRoleLabels));
-updateRoleLabels();
+function setArrangementValue(name, value) {
+  const el = document.querySelector(`input[name="${name}"][value="${value}"]`);
+  if (el) el.checked = true;
+}
+
+function renderSideSetupWidget() {
+  const humanSide = currentArrangementValue('humanSideChoice') || 'cho';
+  const topSide = humanSide === 'cho' ? 'han' : 'cho';   // 위(AI) 자리에 올 진영
+  const bottomSide = humanSide;                           // 아래(당신) 자리에 올 진영
+  const label = v => v === '마상' ? '마 | 상' : '상 | 마';
+
+  function fillSlot(slot, side) {
+    const leftBtn = document.querySelector(`.ssw-pill[data-slot="${slot}"][data-part="left"]`);
+    const rightBtn = document.querySelector(`.ssw-pill[data-slot="${slot}"][data-part="right"]`);
+    leftBtn.textContent = label(currentArrangementValue(side + 'Left'));
+    rightBtn.textContent = label(currentArrangementValue(side + 'Right'));
+    leftBtn.dataset.side = side;
+    rightBtn.dataset.side = side;
+    leftBtn.className = 'ssw-pill ssw-' + side;
+    rightBtn.className = 'ssw-pill ssw-' + side;
+  }
+  fillSlot('top', topSide);
+  fillSlot('bottom', bottomSide);
+}
+
+// 모서리 4개 버튼은 완전히 독립적 — 각자 자기 진영·자기 위치의 값만 토글한다.
+document.querySelectorAll('.ssw-pill').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const name = btn.dataset.side + (btn.dataset.part === 'left' ? 'Left' : 'Right');
+    const cur = currentArrangementValue(name);
+    setArrangementValue(name, cur === '마상' ? '상마' : '마상');
+    renderSideSetupWidget();
+  });
+});
+// 회전 버튼: 색(선공/후공, 사람/AI) 위치만 서로 바꿀 뿐, 각 진영의 마·상 배치값은 전혀 건드리지 않는다.
+document.getElementById('sswRotateBtn').addEventListener('click', () => {
+  const cur = currentArrangementValue('humanSideChoice');
+  setArrangementValue('humanSideChoice', cur === 'cho' ? 'han' : 'cho');
+  renderSideSetupWidget();
+});
+renderSideSetupWidget();
 
 // Fairy-Stockfish는 이 파일에 임베드된 로컬 엔진으로 백그라운드에서 초기화 시도
 // (실패 시에만 CDN 폴백). 준비되면 이후 대국에서 1순위 엔진으로 쓰이고,
