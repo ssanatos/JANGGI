@@ -137,6 +137,12 @@
     color:#fff;
   }
   .setup-hint{font-size:12px;color:var(--muted); margin-top:6px; line-height:1.5;}
+  .ad-text-link{
+    display:inline-block; margin-top:10px; font-size:13px; font-weight:700;
+    color:var(--ink-gold); text-decoration:underline; text-underline-offset:2px;
+    cursor:pointer;
+  }
+  .ad-text-link:hover{ color:#fff; }
 
   /* ── 진영/배치 설정 위젯 ── */
   #sideSetupWidget{ display:flex; flex-direction:column; align-items:center; gap:8px; }
@@ -309,20 +315,8 @@
     #sidePanel{width:min(560px,94vw);}
   }
 
-  #ad-bar{
-    flex:0 0 auto;
-    display:flex; flex-direction:column; align-items:center;
-    gap:4px;
-    padding:2px 0 10px 0;
-    position:relative; z-index:5;
-  }
-  #ad-bar .ad-disclosure{
-    font-size:10px; color:var(--muted); letter-spacing:0.01em; text-align:center;
-    padding:0 14px;
-  }
-  #ad-bar .ad-slot{
-    min-height:50px; min-width:240px;
-    display:flex; align-items:center; justify-content:center;
+  .ad-disclosure{
+    font-size:10px; color:var(--muted); letter-spacing:0.01em; text-align:left;
   }
 </style>
 </head>
@@ -332,16 +326,6 @@
   <h1>논풀이 장기</h1>
   <p>전통 장기 · AI와 대국하기</p>
 </header>
-
-<div id="ad-bar">
-  <div class="ad-disclosure">이 앱은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</div>
-  <div class="ad-slot">
-    <script src="https://ads-partners.coupang.com/g.js"></script>
-    <script>
-        new PartnersCoupang.G({"id":1000572,"trackingCode":"AF0795367","subId":null,"template":"carousel","width":"240","height":"50"});
-    </script>
-  </div>
-</div>
 
 
 <!-- ===================== 설정 화면 ===================== -->
@@ -382,6 +366,10 @@
       <option value="normal">보통</option>
       <option value="hard" selected>강함 (생각 시간 김)</option>
     </select>
+    <div id="adLinkWrap" hidden>
+      <a href="https://link.coupang.com/a/g4f13fR4nI" target="_blank" rel="noopener sponsored" class="ad-text-link">▶ 쿠팡 방문 후 강한 AI 체험</a>
+      <div class="ad-disclosure" style="margin-top:2px;">이 링크는 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</div>
+    </div>
   </div>
 
   <div id="startBtnWrap">
@@ -7550,6 +7538,14 @@ document.getElementById('startBtn').addEventListener('click', () => {
   refineWinProbWithSearch();
   if (state.turn !== state.humanSide) aiTurn(); // AI가 선공(한)을 골랐을 경우 바로 첫 수 진행
 });
+
+function updateAdLinkVisibility() {
+  const sel = document.getElementById('difficultySelect');
+  const wrap = document.getElementById('adLinkWrap');
+  if (sel && wrap) wrap.hidden = sel.value !== 'hard';
+}
+document.getElementById('difficultySelect').addEventListener('change', updateAdLinkVisibility);
+updateAdLinkVisibility();
 
 function currentArrangementValue(name) {
   const el = document.querySelector(`input[name="${name}"]:checked`);
