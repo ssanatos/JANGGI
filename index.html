@@ -7447,7 +7447,9 @@ function dropPointToLogicalCell(x, y) {
   if (dispC < 0 || dispC > COLS - 1 || dispR < 0 || dispR > ROWS - 1) return null;
   const cx = MARGIN + dispC * DX, cy = MARGIN + dispR * DY;
   if (Math.hypot(x - cx, y - cy) > Math.min(DX, DY) * 0.65) return null; // 칸 중심에서 너무 멀면 "판 밖"으로 간주
-  return isFlipped() ? { r: ROWS - 1 - dispR, c: COLS - 1 - dispC } : { r: dispR, c: dispC };
+  // sx()는 열을 절대 뒤집지 않고 sy()만 행을 뒤집으므로(위 sx/sy 주석 참고),
+  // 여기서도 열(c)은 그대로 두고 행(r)만 필요 시 뒤집어야 렌더링 좌표계와 일치한다.
+  return { r: isFlipped() ? ROWS - 1 - dispR : dispR, c: dispC };
 }
 
 function attachEditDragHandlers(svg) {
