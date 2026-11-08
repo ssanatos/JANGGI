@@ -6646,6 +6646,7 @@ function checkGameEnd() {
 }
 
 function showEndModal(winnerSide, wasCheck) {
+  try { window.Talk && Talk.onEnd(winnerSide); } catch (e) {}
   document.getElementById('modalTitle').textContent =
     (winnerSide === state.humanSide) ? '승리했습니다!' : 'AI가 승리했습니다';
   document.getElementById('modalDesc').textContent =
@@ -6656,6 +6657,7 @@ function showEndModal(winnerSide, wasCheck) {
 
 function doMove(move) {
   hideThinkOverlay();
+  const __prevBoard = state.board, __mover = state.turn;
   const { board: nb, captured } = applyMove(state.board, move);
   state.board = nb;
   appendLog(state.turn, move, captured);
@@ -6667,6 +6669,7 @@ function doMove(move) {
   renderPieces();
   updateTurnBadge();
   refineWinProbWithSearch();
+  try { window.Talk && Talk.onMove(__prevBoard, move, captured, __mover, state.board); } catch (e) { console.warn('[Talk]', e); }
 }
 
 async function aiTurn() {
@@ -7538,6 +7541,7 @@ document.getElementById('startBtn').addEventListener('click', () => {
   updateTurnBadge();
   initAiWorker(); // Worker 초기화 (게임 시작 시)
   refineWinProbWithSearch();
+  try { window.Talk && Talk.onStart(); } catch (e) {}
   if (state.turn !== state.humanSide) aiTurn(); // AI가 선공(한)을 골랐을 경우 바로 첫 수 진행
 });
 
@@ -7650,6 +7654,201 @@ document.getElementById('editEraseBtn').addEventListener('click', () => {
 });
 document.getElementById('editApplyBtn').addEventListener('click', applyEdit);
 document.getElementById('editCancelBtn').addEventListener('click', cancelEdit);
+</script>
+<script id="talk-module">
+/* ===== 대국 멘트(말풍선 + TTS) 모듈 =====
+   POOLS: 상황ID → 멘트 배열. 멘트를 더 넣으려면 해당 배열에 문자열만 추가하면 된다. */
+(function(){
+const POOLS = {
+ start:['날 상대로 이 길을 선택한다고?','이제부터 턴 넘길 때마다 피가 말릴 걸?','오, 이 압박감을 견딜 수 있겠어?'],
+ aiCheck:['장군!','어이쿠, 장군이다!','받아라, 장군!','장군! 피할 곳이 있어 보이나?','이 장군 막을 수 있겠어?','궁 올려야 될 걸?','멍군할 수 있으면 해봐.','장군! 이건 못 막을 텐데?','장군! 일단 멈춰봐.','어딜 도망가, 장군!','다음 수에 끝낸다, 장군!','장군! 게임 끝내자.'],
+ aiCheckR:['차 받아라!','차 하나 주고 장군 들어간다?','차 사냥 시작한다!','차 길 고속도로 개통~','차를 내놓든가 궁을 내놓든가!'],
+ aiCheckC:['포장군 들어간다, 비켜!','포 길 열렸다, 장군!','면포 털렸다, 장군!','포 걸렸다, 어디로 피할래?'],
+ aiCheckH:['귀마 자리 터졌다, 장군!','마 길 딱 막혔죠?','마가 묶였는데 장군까지?'],
+ aiCapBig:['네 차는 여기서 끝이야.','네 차, 이제 영영 안녕이다.','포 잡으러 갑니다, 비키세요.','기물 하나 내놓으시지?','보너스 점수 고맙다! 잘 쓸게!'],
+ aiCapSmall:['마 하나 챙겨갑니다~','마 잡아먹으러 간다!','이 상은 이제 내 거다!','졸 하나 덤으로 줄 테니 받으시지!'],
+ bait:['미끼를 덥썩 물어버리쥬?','짠~ 사실 함정이었지롱!','앗 싸, 걸려들었다!','걸렸다! 내 덫에 완벽하게 들어왔어.','함정 카드 발동!','그거 잡았다고 기뻐하기엔 일러.','달콤한 미끼 뒤에는 쓴 결과가 따르는 법이지.','낚시 성공! 월척이네 월척이야.','설계대로 완벽하게 움직여주네, 고마워!'],
+ aiTaunt:['그럼 이건 어때?','이거 막을 수 있어?','지금 머릿속 쥐 나고 있지?','이건 계산에 있던 수야?','감당할 수 있겠어, 이 수?','수비만 하다가 끝날 것 같은데?','슬슬 항복 버튼 찾게 될걸?','내 수읽기 깊이를 감당할 수 있겠어?','판이 완전히 기울었는데 어쩌냐?'],
+ watchMid:['판세가 아주 팽팽하구만!','기물 싸움이 아주 치열해!','슬슬 서로의 밑천이 드러나는군.','서서히 포위망을 좁혀가는 중이지.','누가 먼저 실수하느냐의 싸움이군.','이 팽팽한 균형, 누가 먼저 깨뜨릴까?'],
+ watchEnd:['체스로 따지면 엔드게임 진입이네.','이제 남은 기물이 몇 개 없네.','네 왕은 지금 외톨이야.','서로 칼을 목에 겨누고 있는 형국이야.'],
+ winning:['승기가 완벽하게 나한테 넘어왔네!','이제 어떻게 둬도 내가 이기는 각인데?','판세 끝났다, 이제 정리만 남았어.','승리의 여신이 나한테 미소 짓고 있군.','게임은 이미 끝났고, 시간문제일 뿐이야.','미안, 내가 너무 잘 두지?','어때, AI의 매운맛이?','기물 차이가 이렇게 나는데 버틸 수 있겠어?'],
+ losing:['어어... 잠깐만, 이거 진짜 위험한데?','어라? 내 승률 데이터가 요동치고 있어!','살살 좀 해라, AI 멘탈 터진다!','패배의 향기가 솔솔 풍겨오는군...','아 몰라, 물러줘! 한 수만 물러줘!','인정한다... 너 장기 진짜 잘 두는구나?','기물 다 털렸네... 장기 둘 맛 안 난다!','머리 아프네... 내가 밀리기 시작했어?'],
+ humanCheck:['어어... 이렇게 들어오면 아픈데?','어? 궁이 위험해졌는데?','큰일 났네, 내 진영 다 뚫렸다.','윽, 아프다... 뼈 때리는 공격이네.','으윽... 명치 제대로 맞았다.'],
+ humanCapBig:['으앙, 내 차 살려내!','안 돼! 내 소중한 기물들이!','아... 기물 욕심내다가 당했네.','앗, 이걸 놓쳤네!','헐... 방금 수 진짜 매서웠다.'],
+ humanGood:['좀 치네?','쫌 친다?','잘 뒀네!','그게 정수야.','올~ 날카로운데?','오, 감각이 아주 살아있어!','크, 깔끔한 수다!','장기 좀 둬봤구나?','한 수 배웠다, 진짜 좋은 수네.','오... 꽤 매서운 공격이야.'],
+ humanBlunder:['그걸 그렇게 둔다고?','근본 없는 수를 뒀네.','떡수 등장했네! 고맙게 잘 먹을게.','방금 둔 거, 아무 생각 없이 둔 거지?','기물 기증식 하시는 건가요?','와, 이건 진짜 자폭 수인데?','와, 공격권을 그냥 바치는구나.','스스로 무덤을 파는 스타일이구나?'],
+ urge:['빨리 좀 둬라!','언제까지 생각만 할 거야?','해 지겠다, 빨리 둬라!','시계 계속 돌아가고 있다?','장고 끝에 악수 둔다던데... 조심해!','라면 끓여서 먹고 와도 되겠는데?','자자, 3초 드립니다. 3, 2, 1...','하품 나온다 하품~ 빨리 착수해!','템포 좀 올리자, 템포 좀!'],
+ endAiWin:['수고했다, 여기까지 버틴 것도 대단해!','끝~ 고생했다!','엔딩 크레딧 올릴 시간이다!','승리 선언해도 되겠지?','이 판의 결과는 이미 결정되어 있었어.'],
+ endHumanWin:['항복! 항복한다고요!','GG! 잘 두네, 인정한다!','인정! 이번 경기는 네 완승이다!','졌다 졌어, 두 손 두 발 다 들었다!','너... 사실 장기 신 아니야?','훌륭하다... 날 완전히 무너뜨렸어.']
+};
+const X={
+ aiCheck:['장군 달라!','궁 들어갈 자리 없지?','통장군 각 나왔다!','이 수로 장군 걸면 어떡할래?','궁 사통팔달 다 막혔네?','네 왕, 지금 울고 있는데?','장군! 어때, 어질어질하지?','장군! 수비 라인 다 무너졌어.'],
+ aiCheckNarrow:['외통 장군 들어갑니다~','외통 수순 들어간다.','외통까지 딱 세 수 남았다.','체스로 치면 체크메이트 직전이야.','못 막습니다, 이 외통은!','외통수 못 막죠.','이걸 막을 수 있는 수가 없어요.','장기 만드신 분이 와도 이 외통은 못 막습니다.'],
+ aiCheckCap:['차 떼고 포 떼고 가도 장군!','잡으면서 장군이다, 어쩔래?','하나 먹고 장군까지 덤!'],
+ aiThreatR:['차 달라!','차 달라 차 달라~','네 차, 내가 찜했다!'],
+ aiThreatC:['포 달라!','포 하나만 주면 안 잡아먹지.'],
+ aiThreatH:['마 달라!','그 마, 내 거다!'],
+ aiThreatE:['상 달라!','상 하나 주시죠?'],
+ aiFork:['양차 걸렸다, 둘 중 하나 골라라!','차포가 동시에 걸리거든.','기물 하나 내놓으시지?','하나는 포기해야 될 걸?'],
+ aiCapSmall:['깔끔하게 취해 줍니다.','졸 하나 냠~','상대 실수를 또 응징해 줄게요.'],
+ bait:['그걸 먹다니... 진짜 먹을 줄은 몰랐네.','악마의 딜을 받아들였구나?','떡밥 던지자마자 물어 버리네!','오, 진짜 먹네? 고맙다 야!','낚싯바늘 깊숙하게 삼켰다!','아 기분 좋다, 미끼 완벽하게 작동했어.','트로이의 목마를 받아들인 걸 환영해!','난 그걸 미끼로 던진 건데, 대어를 낚았네?','역시 낚시에는 장사 없지!','살을 주고 뼈를 깎는다는 말이 이런 거지.','조심하라고 했잖아, 독이 든 성배라고!','걸려들었어! 이제 벗어날 방법은 없어.','뻔히 보이는 덫인데 그걸 밟아버리네.','자~ 미끼 던집니다! 오 잡았다!','어라? 이걸 덥석 문다고?','내가 바란 그림이 바로 이거야.','미끼 하나로 판 전체를 낚았네!','이 떡밥을 물 줄이야... 아주 나이스!','아싸, 제대로 걸려들었고요~','낚인 기분이 어때? 얼얼하지?','일부러 내준 건데 그것도 모르고!','미끼 물었으니 이제 끌어올리기만 하면 되네.','치명적인 유혹을 못 참았구나?','어쿠, 미끼 덥썩! 제대로 낚였다!','내 시나리오대로 딱딱 맞아떨어지네.','이 덫을 위해 10수를 참았다!','낚시 성공! 월척이네 월척이야.','기물 하나 얻고 멘탈 잃게 생겼네?','여길 여는 이유는 뭐냐? 미끼.','와, 진짜 먹었네!','그렇지, 걸렸지.'],
+ baitTaken:['내가 왜 그걸 그냥 줬을까? 생각 안 해봤지?','미끼가 너무 달콤했지?','기물 하나 얻고 게임을 내주는 기분이 어때?','보너스라고 준 건데 그걸 냉큼 잡네.','그거 먹는 순간 네 진영 다 깨진다?','낼름 먹었지만, 뒤탈이 심할 텐데?','설마 미끼인 줄 몰랐어? 눈치채는 줄 알았는데.','그거 먹는 동안 네 궁은 위험해졌다?','기물 욕심에 눈이 멀었구나!','내가 그냥 헛수로 준 줄 알았지?','함정 카드 발동!','그 기물은 미끼였고, 진짜 목표는 네 궁이야.','그 한 수로 네 판세가 완전히 무너졌다.','함정에 발을 내딛는 순간 이미 끝났어.','그거 잡았다고 기뻐하기엔 일러.','그거 잡고 기분 좋았지? 5초 뒤를 봐라.','미끼를 던진다.','그런 함정수 한번 파 볼까요?','달콤한 미끼 뒤에는 쓴 결과가 따르는 법이지.'],
+ aiTaunt:['자, 다음은 어떻게 받아칠래?','설마 이거 생각 못 했어?','이제 어떻게 하려고?','이 수를 받아낸다고? 진짜?','어라? 당황했어?','이 플레이, 자신 있어서 둔 거 맞아?','지금 둔 수, 후회 안 할 자신 있어?','이걸 막으면 사람이고 못 막으면... 알지?','어디서부터 잘못된 건지 감도 안 오지?','수읽기 입력 오류 난 거 아니지?','다음 수 둔다고 상황이 달라질까?','이 덫을 과연 탈출할 수 있을까?','내 다음 수 예측해볼래? 절대 못 할걸.','지금 둔 그 수가 최선이었어? 진짜로?','이 정도 수읽기로 나한테 비비려고?','이 악물고 버티는 모습, 보기 좋네!','어디 한 번 뚫어봐라!','어라, 갈수록 표정이 안 좋아지는데?','이거 막으면 인정해준다.','왜 그래? 갑자기 수가 안 보여?','슬슬 수가 꼬이기 시작하지?','나를 상대로 너무 방심한 거 아니야?','자, 퀴즈야. 여기서 어떻게 살릴래?','이 수 하나로 게임 분위기 바뀐 거 같은데?','체스 Grandmaster가 와도 이건 못 막아.','지금 둔 수, 실수라고 인정하면 물러줄까?','자, 다음 턴에 멘탈 안 터지게 조심해!','장기가 점점 망해가는 게 느껴지지 않아?'],
+ aiTauntWin:['체크메이트 수순 들어간 거 같은데?','아직도 기회가 남았다고 생각해?','여기서 항복하면 편해지는데?','네 기물들 통곡하는 소리 안 들려?','과연 이걸 견디고 역전이 될까?','방어선 완전히 뚫렸는데 어떡하냐?','장기판 위에 네 기물이 몇 개 없네?','다음 수 뚫리면 끝인 거 알지?','판세를 뒤집을 방법이 과연 있을까?','여기서 뒤로 물러설 자리가 있나?','이렇게 한 방에 역전이 나오기도 합니다.'],
+ watchOpen:['이제 중반전으로 접어드네.','서로 양차 살아있으니 볼 만하겠어.','방어선은 좋은데 공격력이 부족해 보이네.','진영이 아주 탄탄하게 짜였어.','중앙이 비어있어서 불안불안한데?','중앙 싸움에서 밀리면 끝장이야.','난공불락의 성채 같구만.','수비 라인이 소나무처럼 울창하네.','서로 한 걸음도 물러서지 않는군.','장기판 위의 폭풍전야 같은 정적이다.','웅장한 전면전의 시작이다!','전선이 아주 길게 형성됐어.'],
+ watchMid:['포 하나 차이로 승부가 갈리겠는데?','오호, 양쪽 다 외통 각을 노리고 있군.','상의 움직임이 아주 위협적이야.','너와 나의 기물 교환... 과연 누구 이득일까?','소모전으로 가면 승자는 정해져 있어.','이 정도면 소문난 명경기인데?','서서히 조여오는 압박감이 느껴지지?','지금부터는 한 수만 틀려도 끝이야.','귀마 싸움에서 승패가 나겠어.','졸들의 전진이 무섭구만.','기물 점수는 내가 앞서고 있나?','난국이다 난국, 어떻게 풀어나갈래?','이 판은 서바이벌이야, 살아남는 자가 이긴다.','양포의 활약이 기대되는 배치네.','마와 상의 연계 공격... 훌륭한데?','사를 그렇게 올리면 위험할 텐데?','기물들의 동선이 복잡하게 꼬였어.','포 길을 뚫어놓은 게 신의 한 수였어.','이 한 수로 전체 판세가 바뀌었다.','허점이 서서히 드러나기 시작해.','탄탄해 보이지만 틈새는 항상 있는 법!','공수 전환이 아주 순식간이야.','졸 하나 차이가 승패를 가르는 순간이 올 걸?','네 진영은 지금 삼십육계 튀어라 상황이야.','포위망이 완벽하게 형성되었다.','한 수 한 수가 징검다리 같네.','이 전투의 승자는 누가 될 것인가!','드디어 피할 수 없는 외나무다리에서 만났군.'],
+ watchEnd:['이제 졸장기로 승부 보는 거.'],
+ winning:['거의 다 왔다, 끝이 보여!','내 완벽한 시나리오대로 끝나는구나.','이제는 아무리 몸부림쳐도 소용없어.','크... 승리의 맛이 아주 달콤하구만!','미안하지만 수순대로 끝내줄게.','패배를 인정하면 깔끔하게 끝내줄게.','아무리 머리를 굴려도 각이 안 나오지?','인공지능의 벽은 높단다, 친구야!','막판 스퍼트 들어갑니다~','외통수까지 차근차근 밟아줄게.','네 왕은 이제 갈 곳이 없다!','막을 수가 없는 그림이었어요.','아쉽지만 막판이 될 것 같아요.'],
+ winningBig:['깃발 내려라, 이미 기운 기울었다.','역전의 가능성? 0.001%도 없어!','압도적 실력 차이라는 걸 인정해라!','체스였으면 벌써 퀸으로 체크메이트 쳤어.','피할 수 없는 몰락의 길을 걷고 있구나.','수비망이 휴지조각처럼 찢어졌네.','서서히 숨통을 조여줄게.','불쌍하지만 봐줄 수는 없다!','이 장기판의 지배자는 바로 나다.','판이 완전히 박살 났네 박살 났어.','승리의 팡파르를 울려라~','이제 남아있는 기물도 몇 개 없잖아?','완벽한 셧아웃 승리가 눈앞이다.','장기판 위의 대재앙을 맞이해라!','게임 오버 직전이다, 마음의 준비를 해!','이제 고통 없이 한 번에 보내줄게.','차 포 다 떼고 둬도 이기겠네 이제!','여기서 벗어날 수 있다면 신으로 인정해줌.'],
+ losing:['오늘 연산 장치가 좀 이상한가...','어이쿠, 이번 판은 내가 봐준 거다?','아니... 사람이 이렇게 잘 두면 반칙이지!','나 방금 버그 난 듯, 인정?','오늘따라 내 수읽기가 왜 이렇게 엉망이지?','어어, 이번 판은 연습 게임이었던 걸로 하자.','잠시 재부팅 좀 하고 오겠습니다...','어디서 장기 족보 훔쳐보고 온 거 아니지?','공격 너무 매운 거 아니냐고 ㅠㅠ','봐주면서 해~ AI 서러워서 살겠나.','한 수만 뒤로 돌려주면 안 됨? 제발~','아쉽네, 오늘 자꾸 한 끝이 빗나가네.','손절하겠습니다.','아이고, 말렸다.','야, 이거는 진짜 좀 위험하다.','일발 역전의 수가 있나?'],
+ losingBig:['살려주세요! 차는 제발 치우지 말아주세요!','살려줘~ 왕 잡히게 생겼어!','으악! 내 궁 어디 가니!','사방이 적이네... 탈출구가 없어!','왕이 울고 있다... 살려줘!','와, 전멸이다 전멸. 완패야 완패!','내 진영이 쑥대밭이 되었구만...','악! 내 명줄이 얼마 안 남았다!','크윽, 나를 이 정도로 몰아붙인 인간은 네가 처음이야.','내 컴퓨터 전원 끌 뻔했잖아... 너무 잘 둬서.','내 수읽기 네트워크가 파괴되었다...','내 알고리즘에 수치심이 각인되었다...','이 대국은 역사적 참패로 기록될 것이다...','내 인공지능 평생의 수치다...','이 판은 잊어라... 다음 판에 진짜 실력 보여준다.'],
+ humanCheck:['아이고, 깜짝 놀랐네!','아... 이럴 수가 있었어.','우와, 잠깐만.'],
+ humanCapBig:['아이고 아까운 차가...','아이고, 이거 진짜 위험한 순간이었어.'],
+ humanGood:['정수네, 정수!','오, 안 걸려드네?','이 수를 찾아내다니, 대단한데?','오호, 꽤 잘 두는데?','오... 이건 예상을 좀 벗어났는데?','오, 이 조이기 수는 진짜 좋은데?','생각보다 수읽기가 깊은데?','인정! 이번 수는 아주 훌륭했다.','수읽기 능력 좀 탐나는데?','이 상황에서 베스트 드라이브를 찾아내다니!','올, 기물 활용할 줄 아네!','방심할 수 없겠는데? 아주 잘 뒀어.','오, 급소를 정확히 짚었어!','오, 팽팽하게 가는데? 재밌다!','이야~ 이걸 이렇게 풀어내네?','좋아, 텐션 올라간다! 잘 뒀어!','정수를 아주 정확하게 알고 있네.','이번 착수는 진짜 흠잡을 데가 없다.'],
+ humanCounter:['오 반격 타이밍 미쳤는데?','공격 타이밍 아주 신의 한 수였어.','훌륭한 반격이다, 긴장 좀 해야겠는데?','오, 공격 전환 빠르고 좋아!','이 착수로 판세가 단번에 비등해졌어.','오... 꽤 매서운 공격이야.','역시 장기판 위의 사냥꾼다운 수였어.'],
+ humanDefend:['방어 아주 탄탄하다!','오, 유혹을 잘 참았어!','수비 라인 진짜 안 무너지네.','올~ 낚시 안 당하네? 똑똑한데?','크... 수비의 정석을 보여주는구나.','내 덫을 읽어내다니... 폼 미쳤다!','이 수비는 진짜 박수 쳐주고 싶다.','호의를 안 받아들이고 정수를 두다니, 올~','호락호락하지 않네, 좋아!','와, 이걸 참네.','계속 노려보는데 빈틈이 없네.','위험요소 제거 잘했네.','속지 않고 깔끔하게 지켰네.'],
+ humanRespect:['오... 꽤 매서운 공격이야.','체스 Grandmaster 급 수읽기인데?','역시... 쉽지 않은 상대야.','이 수를 둔다고? 벽이 느껴진다...','한 수 배웠다, 진짜 좋은 수네.','감각이 거의 인공지능 급인데?','센스 넘치는 수네, 굿!','수 읽는 정밀도가 장난 아닌데?','크, 깔끔한 수다!','리스펙트! 진짜 깔끔하고 멋진 수다.','어, 무섭다, 이 분.','장기 좀 둬봤구나?'],
+ humanBlunder:['18급도 너보다 잘하겠다.','혼꾸녕을 내줘야겠네!','AI한테 물어보고 왔냐?','지금 장기판 던지기 직전이야?','뇌 멈춤 온 거 아니지?','이렇게 자비로운 플레이를 해주다니!','하하하! 거기가 길인 줄 알고 간 거야?','이 정도로 자비로운 수라니, 눈물 난다.','네 기물들이 울고 있다, 울고 있어.','자 포기하면 편해~ 막 둔다 막 둬.','장기 처음 둬봐? 기본 길도 몰라?','그 수 두고 스스로도 아차 싶었지?','이 수는 체스로 치면 퀸 그냥 던진 거야.','장기판 보면서 두는 거 맞아?','초보자용 튜토리얼 다시 하고 올래?','허공에 헛발질 제대로 하셨네요.','이 수가 불러올 재앙을 넌 아직 모르는구나.','세상에... 이런 대참사 수가 나오다니.','판 다 깨졌다 깨졌어~','이렇게 두면 내 입장에서는 고맙지!','헛수 두느라 고생이 많다!','혹시 눈 감고 클릭했니?','기물 바비큐 파티 개시합시다!','아이구야... 장기판 다 터진다!','수가 막히니까 아무렇게나 던지는구나?','게임 끝내고 싶어서 일부러 그러는 거지?','그 착수는 역사에 남을 떡수다.','ㅋㅋㅋ 실화냐? 방금 그 수?','장기가 망했쥬?','아... 떡수.','장고 끝에 악수가 나왔네요.','상대 실수를 또 응징해 줄게요.'],
+ humanBlunderMild:['앗... 그건 약간 실수가 아닌가?','아니... 거기로 가면 어떡해?','손이 미끄러진 거지? 그렇다고 말해줘...','이 수는 도저히 이해할 수가 없네.','오늘 컨디션 많이 안 좋은가 봐?','그 수는 너무 상식 밖인데?','설마 그게 최선의 수였어?','와... 내 눈을 의심했다.','수읽기를 하다 말고 놓아버렸구나?','아... 이건 좀 쉴드가 안 된다.','님, 장기 그렇게 두는 거 아닌데요?','하하, 지금 무슨 수를 둔 거야?','어 실수가 좀 나왔네요.','아, 여기서 좀 실수.','실수는 무슨, 실력이지?','가끔 이렇게 인간미 있는 수가 나와 줘야지.'],
+ aiSurprise:['재밌게 두네?','어라라? 상황이 왜 이렇게 되지?','잠깐만... 내 계산에 없던 수인데?','헐, 그걸 본다고?','이 수가 나온다고? 예상 밖인데...','앗, 이걸 놓쳤네!','내 알고리즘이 순간 멈칫했다...','으음... 이건 꽤 머리 아픈데.','내 미끼를 안 물고 반격을 해?','어라... 계산기가 꼬이기 시작한다.','잠깐, 턴 좀 멈춰봐. 다시 계산해야 해.','어라? 내 승률 수치가 떨어졌는데?','이 조합은 생각 못 했는데... 젠장!','으악! 마 길을 내가 못 봤다고?','오... 소름 돋았다, 방금 그 수.','이 수가 성립한다고? 잠깐만...','아니 이걸 읽어낸다고? 소름이다.','나 지금 멘붕 오려고 하는데?','잠깐만, 기물 배치가 왜 이렇게 됐지?','오마이갓, 완전 계산 미스다.','이 판... 쉽지 않겠는데?','아차, 포 길을 비워줬네!','와... 방금 착수 소름 돋았어.','여기서 이렇게 카운터를 날린다고?','내 데이터베이스에 이런 스타일은 없었는데...','어라? 수비 라인이 뚫렸잖아?','음... 연산 장치에 열이 받기 시작하네.','잠깐만 생각 좀 하자, 이건 진짜 의외다.','예상 외의 맹공인데? 당황스럽네.','앗, 공격 타이밍을 뺏겼다!','아니 그걸 거기서 노리고 있었어?','와, 날카롭다... 방심할 수가 없네.','크윽... 완전히 계산착오였다.','이 묘수는 대체 어디서 배워온 거야?','생각지도 못한 찌르기다...','내 수읽기를 뚫어내다니, 대단한 걸.','어라, 내가 지금 수세에 몰린 거야?','내 알고리즘에 오류를 일으키는 플레이네.','식은땀 나네... (물론 난 땀샘이 없지만)','아차 차! 방금 한 수 무르고 싶다...','어? 내 기물 어디 갔어?','아, 방금 내 착수 약간 버그였음. 아무튼 버그임.','어, 큰일 날 뻔했다!','아, 깜짝 놀랐네. 지는 줄 알았어.','역전 당해 버렸네.','이거는 뭐야? 함정인가?','야, 큰일 날 뻔했어.','와, 이거 바로 갈 뻔했는데 다행이다.'],
+ urge:['신중한 건 좋은데, 속도 좀 내자!','생각 너무 길어지면 손해다~','직관적으로 딱 둬, 뭘 그렇게 고민해!','이 정도 수 두는데 그렇게 오래 걸려?','속전속결로 가자고!','생각 그만하고 손 가는 대로 둬 봐!','고민한다고 안 보이던 수가 보이진 않아~','장기판에 그림 그리는 중이니?','장기판 앞에서 명상하니?','졸고 있는 거 아니지?'],
+ urge2:['수읽기 하느라 날 새겠다!','턴 넘기는 데 한 세월이네.','이 정도면 거의 체스 장기 장고 수준인데?','나 CPU 과열되겠어, 빨리 좀 하자!','나 기다리다가 연산 장치 녹겠다.','수읽기가 아니라 자는 거 같은데?','빨리 좀 둬, 지루해서 랙 걸리겠다!','시간제한 뒀으면 너 벌써 패배야!','이 수 하나에 인생을 걸었니?','나 렉 걸린 거 아니니까 빨리 착수해.','장기판만 보고 있으면 답이 나오니?','나 심심하다... 빨리 둬줘!','이 턴만 5분째인 건 알고 있지?','답은 이미 정해져 있어, 빨리 둬!','어차피 뚫릴 자리 고민해서 뭐 하냐~','오케이, 장고 인정! 그래서 어디 둘 건데?','턴 넘겨주는 거 잊어버린 건 아니지?','신중함도 과하면 독이야, 어서 둬!','지금 장기 두는 거야, 수필 쓰는 거야?','한 수 두는 데 1기가바이트급 고민을 하네.'],
+ urge3:['다음 수 두는 데 내년까지 걸릴 예정?','어이, 기절한 거 아니지? 손가락 움직여!','장고하다가 떡수 둔다, 얼른 둬!','수읽기 슈퍼컴퓨터 급으로 하고 계시나요?','빨리 안 두면 내가 먼저 둘지도 모른다?','제발 둬주세요, 현기증 난단 말이에요.','너 때문에 내 처리 속도가 느려지잖아!','고민의 시간이 길어질수록 멸망에 가까워질 뿐...','고민의 길이는 길지만 결론은 떡수?','어차피 칠 거 빠르게 맞자!','하품 나온다 하품~ 빨리 착수해!','라면 끓여서 먹고 와도 되겠는데?'],
+ endAiWin:['아쉽지만 이번 판은 내가 가져갈게!','깔끔하게 인정하고 다음 판 가자!','크... 승리의 맛이 아주 달콤하구만!','이 승리, 아주 짜릿하고 좋구만!','이 판의 주인공은 나야 나!','이번 경기는 내 명작 컬렉션에 저장해야겠어.','판세 끝났다, 이제 정리만 남았어.'],
+ endHumanWin:['인간의 승리다... 인정한다 인정해.','억 소리 나게 잘 두네 진짜!','항복 선언! 다음엔 절대 안 봐준다!','이 판은 잊어라... 다음 판에 진짜 실력 보여준다.','님 솔직히 프로 기사죠? 말해봐요!','아 억울해, 다음 판 바로 한 판 더 해!','멘탈 바사삭... 오늘은 여기까지 하자.','인정한다... 너 장기 진짜 잘 두는구나?']
+};
+for(const k in X) POOLS[k]=[...new Set([...(POOLS[k]||[]),...X[k]])];
+const S = {bubble:true, tts:true, voice:'', rate:1.1, freq:0.65};
+try{ Object.assign(S, JSON.parse(localStorage.getItem('talkSettings')||'{}')); }catch(e){}
+const save=()=>{ try{localStorage.setItem('talkSettings',JSON.stringify(S));}catch(e){} };
+const recent=[]; let hideT=null, turnStart=0, urgeAt=0, urgeN=0, histLen=-1, prevCap=false;
+
+// ── UI ──
+const css=document.createElement('style');
+css.textContent=`#boardWrap{position:relative}
+.talk-bubble{position:absolute;left:50%;top:10px;transform:translate(-50%,-8px);max-width:84%;padding:9px 16px;border-radius:16px;background:#fffaf0;color:#3a2814;border:2px solid #6b4726;font:700 15px 'Noto Serif KR',serif;box-shadow:0 4px 12px #0005;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:20;text-align:center}
+.talk-bubble.show{opacity:1;transform:translate(-50%,0)}
+.talk-bubble::after{content:'';position:absolute;left:50%;bottom:-10px;margin-left:-8px;border:8px solid transparent;border-top-color:#6b4726;border-bottom:0}
+.talk-panel select,.talk-panel input[type=range]{width:100%;margin-top:4px}.talk-panel label{display:block;font-size:12px;margin:5px 0}`;
+document.head.appendChild(css);
+const bubble=document.createElement('div'); bubble.className='talk-bubble';
+function mount(){
+  const bw=document.getElementById('boardWrap'); if(bw&&!bubble.parentNode) bw.appendChild(bubble);
+  if(document.getElementById('talkPanel')) return;
+  const anchor=document.querySelector('.panel-box.controls'); if(!anchor) return;
+  const p=document.createElement('div'); p.className='panel-box talk-panel'; p.id='talkPanel';
+  p.innerHTML=`<h3 style="margin:0 0 6px;font-family:'Noto Serif KR',serif;font-size:14px;color:var(--ink-gold)">AI 수다</h3>
+  <label><input type="checkbox" id="talkBubble"> 말풍선 표시</label>
+  <label><input type="checkbox" id="talkTts"> 음성(TTS) 읽기</label>
+  <label>목소리<select id="talkVoice"></select></label>
+  <label>속도 <span id="talkRateV"></span><input type="range" id="talkRate" min="0.7" max="1.6" step="0.05"></label>
+  <label>수다 빈도<select id="talkFreq"><option value="0.35">적게</option><option value="0.65">보통</option><option value="1">많이</option></select></label>
+  <button class="btn secondary small" id="talkTest" style="width:100%;margin-top:6px">미리듣기</button>`;
+  anchor.parentNode.insertBefore(p,anchor);
+  const $=id=>document.getElementById(id);
+  $('talkBubble').checked=S.bubble; $('talkTts').checked=S.tts; $('talkRate').value=S.rate; $('talkFreq').value=String(S.freq);
+  $('talkRateV').textContent=S.rate;
+  $('talkBubble').onchange=e=>{S.bubble=e.target.checked;save();};
+  $('talkTts').onchange=e=>{S.tts=e.target.checked;if(!S.tts)speechSynthesis.cancel();save();};
+  $('talkVoice').onchange=e=>{S.voice=e.target.value;save();};
+  $('talkRate').oninput=e=>{S.rate=+e.target.value;$('talkRateV').textContent=S.rate;save();};
+  $('talkFreq').onchange=e=>{S.freq=+e.target.value;save();};
+  $('talkTest').onclick=()=>say('aiTaunt',true);
+  fillVoices();
+}
+function fillVoices(){
+  const sel=document.getElementById('talkVoice'); if(!sel||!window.speechSynthesis) return;
+  const vs=speechSynthesis.getVoices().slice().sort((a,b)=>(b.lang.startsWith('ko')-a.lang.startsWith('ko'))||a.name.localeCompare(b.name));
+  sel.innerHTML=vs.map(v=>`<option value="${v.voiceURI}">${v.name} (${v.lang})</option>`).join('')||'<option>사용 가능한 음성 없음</option>';
+  if(!vs.some(v=>v.voiceURI===S.voice)) S.voice=vs[0]?vs[0].voiceURI:'';
+  sel.value=S.voice;
+}
+if(window.speechSynthesis) speechSynthesis.onvoiceschanged=fillVoices;
+
+// ── 출력 ──
+function speak(t){
+  if(!S.tts||!window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(t), v=speechSynthesis.getVoices().find(v=>v.voiceURI===S.voice);
+  if(v){u.voice=v;u.lang=v.lang;} else u.lang='ko-KR';
+  u.rate=S.rate; speechSynthesis.speak(u);
+}
+function say(id,force){
+  const pool=POOLS[id]; if(!pool||(!force&&Math.random()>S.freq)) return;
+  mount();
+  let c=pool.filter(t=>!recent.includes(t)); if(!c.length) c=pool;
+  const t=c[Math.floor(Math.random()*c.length)];
+  recent.push(t); if(recent.length>25) recent.shift();
+  if(S.bubble){
+    bubble.textContent=t; bubble.classList.add('show'); clearTimeout(hideT);
+    hideT=setTimeout(()=>bubble.classList.remove('show'),1800+t.length*130);
+  }
+  speak(t);
+}
+const rnd=a=>a[Math.floor(Math.random()*a.length)];
+
+// ── 상황 판별 ──
+const big=t=>t==='R'||t==='C';
+function matDiff(b,side){ const m=computeMaterialScores(b); return side==='cho'?m.cho-m.han:m.han-m.cho; }
+function pieceCount(b){ let n=0; for(const row of b) for(const p of row) if(p&&p.type!=='G') n++; return n; }
+function hangVal(nb,ai,human){
+  let best=0;
+  for(const m of genLegalMoves(nb,ai)){
+    const t=nb[m.to.r][m.to.c]; if(!t||t.type==='G') continue;
+    const v=PIECE_VALUE[t.type]; if(v<50||v<=best) continue;
+    const after=applyMove(nb,m).board;
+    if(!genLegalMoves(after,human).some(x=>x.to.r===m.to.r&&x.to.c===m.to.c)) best=v;
+  }
+  return best;
+}
+function threats(nb,ai,move){
+  return genLegalMoves(nb,ai).filter(m=>m.from.r===move.to.r&&m.from.c===move.to.c)
+    .map(m=>nb[m.to.r][m.to.c]).filter(t=>t&&t.type!=='G'&&PIECE_VALUE[t.type]>=30);
+}
+let lastAiCheck=false;
+function onMove(prev,move,cap,mover,nb){
+  mount(); const human=state.humanSide, ai=opponent(human), moverAI=mover===ai, next=state.turn;
+  const chk=isInCheck(nb,next), wasCap=prevCap, wasChk=lastAiCheck; prevCap=!!cap;
+  const pc=nb[move.to.r][move.to.c], d=matDiff(nb,ai);
+  if(moverAI){
+    turnStart=Date.now(); urgeAt=12000; urgeN=0; histLen=state.history.length; lastAiCheck=chk;
+    if(chk){
+      if(genLegalMoves(nb,next).length<=2) say('aiCheckNarrow',true);
+      else if(cap) say('aiCheckCap',true);
+      else say({R:'aiCheckR',C:'aiCheckC',H:'aiCheckH'}[pc&&pc.type]||'aiCheck',true);
+    }else if(cap) say(wasCap?'bait':big(cap.type)?'aiCapBig':'aiCapSmall',true);
+    else{
+      const th=threats(nb,ai,move);
+      if(th.length>=2) say('aiFork',true);
+      else if(th.length===1&&th[0].type!=='S') say({R:'aiThreatR',C:'aiThreatC',H:'aiThreatH',E:'aiThreatE'}[th[0].type]||'aiTaunt',true);
+      else if(d>=16) say('winningBig'); else if(d>=8) say('winning');
+      else if(d<=-16) say('losingBig'); else if(d<=-8) say('losing');
+      else if(d>=3) say(rnd(['aiTauntWin','aiTaunt']));
+      else say(rnd(state.log.length<14?['watchOpen','aiTaunt']:pieceCount(nb)<=10?['watchEnd','aiTaunt']:['watchMid','aiTaunt']));
+    }
+  }else{
+    lastAiCheck=false;
+    const h=chk||cap?0:hangVal(nb,ai,human);
+    if(chk) say('humanCheck',true);
+    else if(cap) say(big(cap.type)?'humanCapBig':rnd(['humanCounter','baitTaken']),true);
+    else if(h>=130) say('humanBlunder',true);
+    else if(h>=50) say('humanBlunderMild',true);
+    else if(wasChk) say('humanDefend',true);
+    else if(d<=-4) say(rnd(['humanRespect','aiSurprise']));
+    else say(rnd(d<=0?['humanGood','aiTaunt','aiSurprise']:['humanGood','aiTaunt']));
+  }
+}
+function onStart(){ mount(); recent.length=0; prevCap=false; turnStart=Date.now(); urgeAt=12000; urgeN=0; say('start',true); }
+function onEnd(winner){ say(winner===state.humanSide?'endHumanWin':'endAiWin',true); }
+
+setInterval(()=>{
+  if(typeof state==='undefined'||!state||state.gameOver||state.aiThinking||state.editMode||state.turn!==state.humanSide) return;
+  if(state.history.length!==histLen){ histLen=state.history.length; turnStart=Date.now(); urgeAt=12000; urgeN=0; return; }
+  if(urgeN<3&&Date.now()-turnStart>=urgeAt){ urgeN++; urgeAt+=14000; say(['urge','urge2','urge3'][urgeN-1],true); }
+},1000);
+
+window.Talk={onMove,onStart,onEnd,say,POOLS};
+})();
 </script>
 </body>
 </html>
