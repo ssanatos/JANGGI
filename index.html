@@ -38,6 +38,9 @@
 </script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="color-scheme" content="dark" />
+<meta name="darkreader-lock" />
+<style>:root{color-scheme:dark}</style>
 <title>장기 · 對局</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -7761,6 +7764,38 @@ POOLS.openProbe=['원앙마 스타일이야?','귀마 스타일이야?','포진 
 POOLS.openPraise=['시작이 깔끔한데?','기본기가 있네.','좋은 출발이야.','정석을 아는 수네.','초반 감각이 좋은데?','오, 첫 수부터 느낌이 있네.','포진이 단단하네.','제법 장기를 둬 본 사람이네.','무난하면서도 좋은 수야.','초반부터 방심할 수 없겠는데?','수가 자연스럽네.','오, 이런 시작도 있었구나.','기본을 잘 지키네.','호흡이 좋다, 마음에 들어.'];
 POOLS.watchOpen=POOLS.watchOpen.filter(t=>!/중반전|전면전|폭풍전야/.test(t));
 POOLS.watchMid.push('이제 중반전으로 접어드네.','웅장한 전면전의 시작이다!');
+const Z={
+ laugh:['하하하하하하!','푸하하하!','아하하하하!','으하하하하!','하하하, 이거 재밌다!','크크크크크.','호호호호호.','하하하하하!','아 웃긴다 진짜.','아이고 웃겨라.','하하, 이거 실화냐?','하하하 너무하네 진짜.'],
+ cheer:['잘 뒀어.','수고했어.','수고하셨습니다.','잘 뒀습니다.','좋았습니다.','고생했어.','잘했어, 잘했어!','한 수 잘 뒀네요.','오, 잘 뒀어!','수고했어, 이번 수 좋았다.'],
+ endCheer:['수고하셨습니다.','수고했어.','수고했어, 잘 뒀어.','잘 뒀어, 다음에 또 두자.','수고하셨습니다, 좋은 한 판이었어요.','오늘도 수고했어.','고생 많았어, 재밌었다.','잘 뒀습니다, 수고하셨습니다.'],
+ aiCheckNarrow:['외통 맞습니다.','막는 방법이 없죠.','깔끔하게 떨어집니다.','차 달라 끝, 깔끔하게 마무리가 됩니다.','포장 치면 외통입니다.','딱 걸렸어요. 절대 하면 안 되는 수가 나왔습니다.','벌써 끝났습니다.','이건 확실하게 해야죠.'],
+ aiThreatR:['차 옆으로 못 가잖아. 딱 묶어 주면 차도 도망 못 가지.','차 묶었습니다, 이제 도망 못 가.'],
+ aiThreatC:['포도 묶였지.','포가 공짜가 될 수도 있겠는데?'],
+ aiCapSmall:['병 달라, 졸 달라.','컷 해 주고요.','역시 잘 먹고, 컷.'],
+ aiFork:['두 마리가 동시에 걸렸네. 누굴 살릴래?','너도 달라, 너도 달라. 때리면 너도 달라.','이럴 때는 머리를 씁니다.','이때 머리를 써야 돼.'],
+ bait:['요거는 올리라고 유도하는 건데요. 낚시입니다.','올려 달라고 유도했지.','낚시입니다.','줘야 돼요, 무조건.'],
+ baitTaken:['무조건 손해예요. 먹으면 안 돼.','먹으면 두 마리 잡혀. 무조건 손해야.','올려 주길 기다렸지.'],
+ aiTaunt:['상대 다음 수만 보면 돼. 대충 어떻게 둘지 예상이 가잖아.','장기를 너무 어렵게 볼 필요 없어.','쫄 필요 없어.','자, 무리하면 안 돼. 천천히.','보통 여기가 승부처야.','여기서 실수가 진짜 많이 나오거든.','묶는 거 되게 중요해.','찝찝하지 않아?','긴장감이 안 느껴져? 그건 남의 일이라서 그래.','오늘 무슨 날이야?','자, 풀파워로 가 볼까?','숨겨 놨던 비기를 꺼내야겠네.','시원시원하게, 화끈하게 가 보자.'],
+ openProbe:['점수 장기로 갈 거야, 화끈하게 갈 거야?','차를 먼저 쫓고 가는 스타일이야?','안궁으로 가는 건가?','면포로 갈까, 귀포로 갈까?','귀상 길이 좋아 보이네.','삐뚤궁 포진을 쓰네?','정수가 뭔지 너무 고민하면 장기가 어려워져.','일단 한 수 버텼다.','차 길도 좀 열고 하자, 인간적으로.'],
+ watchMid:['보통 차대가 끝나고 전투가 끝난 타이밍이 승부처야.','실수는 이 타이밍에 진짜 많이 나와.','잘 두기가 쉽지 않아, 여기가 생각보다 어려워.','점수 교환 잘했다.','진짜 많이 풀렸네.','재미난 형태가 됐네.','답답하죠, 요렇게 많이 둡니다.','한 타만 버티면 돼.','무조건 버텨야 돼.','온다, 온다, 쳐들어 온다!','가둬먹기 각이 보이는데?','차대 요청이 들어왔네.','포진이 좋으면 그게 풀파워 아닐까?','다음 수가 보이지 않아, 대충 뭐 할지.','공격 각이 안 나오네.','병 달라 졸 달라, 서로 달라 달라네.'],
+ winning:['깔끔하게 말렸습니다, 좋죠.','깔끔하게 마무리가 됩니다.','역시 잘 먹고 컷.','공짜 처리해 주겠습니다.','아싸!','기본 체급이란 게 있어서.','무시무시한 거 봤네.','이건 확실하게 해야죠.'],
+ winningBig:['벌써 끝났습니다.','컷. 이 판은 여기까지.','깔끔하게 떨어집니다.','51수 컷. 잘 뒀습니다.'],
+ losing:['와, 뭐지? 큰일 났네. 지겠다.','별 거 안 했는데 왜 지겠지?','어떻게 이렇게 된 거지?','해도 해도 너무하지 않나?','장기가 이렇게 심각하네요.','어, 점수 차가 좀 나네.','내가 못 뜬 거예요.','뭔가 똥기에 말린 거야?'],
+ losingBig:['너무하네 진짜.','도무지 이해할 수가 없는 판이네.','이게 왜 이렇게 되지?','아이고, 잠깐만. 이거 하면 안 되는 거였는데.','와, 완전히 묶였다.'],
+ humanCheck:['잠깐만, 장군 하지 마!','생각보다 심각한 장군이네요.','한 수 버텼다.','아, 이거 급하게 막아야 되네.'],
+ humanBlunder:['절대 하면 안 되는 수가 나왔습니다.','딱 걸렸어요.','오늘 무슨 날이야?','장기를 이렇게 둬도 되나?','그냥 막 두시는 거 같은데요.'],
+ humanBlunderMild:['해도 해도 너무하지 않아?','인간적으로 하자, 인간적으로.','상대가 실수를 해 주는 덕분에 많이 풀렸어.','약간 느릿느릿 멈칫거리는 게 보이는데?','조금 당황하신 거 같아요.'],
+ humanGood:['용케 잘 나갔다.','쫄 필요 없다는 거네, 좋아.','고인물 같은데?','이건 기분 탓이 아니야, 진짜 잘 두네.'],
+ humanRespect:['뭔데, 초고수야?','와, 고인물이네.','기본 체급이란 게 있구나.','풀파워가 나오네, 이거 쉽지 않다.','진짜 만만치 않네, 이 상대.'],
+ humanDefend:['한 타 버텼네.','잘 버텼어.','인간적으로 잘 막았다.','용케 또 나갔다.'],
+ aiSurprise:['아, 잠깐만. 이게 차대 하면 안 되는데.','아이고.','어, 이게 맞나?','와, 뭐지? 큰일 났네.','이게 왜 안 되지?','잠깐만, 이거 내가 못 본 건가?'],
+ urge:['무리하지 말고 천천히 둬, 근데 너무 천천히는 말고.','쫄 필요 없다니까?'],
+ endAiWin:['51수 컷. 잘 뒀습니다.','컷. 수고하셨습니다.','좋았습니다, 잘 뒀습니다.','다음 판도 가 보죠.'],
+ endHumanWin:['잘 뒀습니다, 완패예요.','수가 보이지 않아요, 졌습니다.','인정합니다. 아주 좋은 한 판이었어요.']
+};
+for(const k in Z) POOLS[k]=[...new Set([...(POOLS[k]||[]),...Z[k]])];
+const LAUGH=new Set(['humanBlunder','humanBlunderMild','bait','baitTaken','winning','winningBig','aiSurprise']);
+const CHEER=new Set(['humanGood','humanDefend','humanRespect','humanCounter']);
 const S = {bubble:true, tts:true, voice:'', rate:1.1, freq:0.65};
 try{ Object.assign(S, JSON.parse(localStorage.getItem('talkSettings')||'{}')); }catch(e){}
 const save=()=>{ try{localStorage.setItem('talkSettings',JSON.stringify(S));}catch(e){} };
@@ -7800,7 +7835,7 @@ function mount(){
   fillVoices();
 }
 function koVoices(){
-  const all=speechSynthesis.getVoices(), ko=all.filter(v=>/^ko/i.test(v.lang));
+  const all=speechSynthesis.getVoices(), ko=all.filter(v=>/^ko([-_]|$)/i.test(v.lang)||/한국/.test(v.name));
   const rank=v=>/natural|neural|online|google|sunhi|injoon|heami|yuna|sora/i.test(v.name)?0:1;
   return (ko.length?ko:all).slice().sort((a,b)=>rank(a)-rank(b)||a.name.localeCompare(b.name));
 }
@@ -7822,22 +7857,13 @@ function ttsClean(t){
 function speak(t){
   if(!S.tts||!window.speechSynthesis) return;
   const v=speechSynthesis.getVoices().find(v=>v.voiceURI===S.voice);
-  const parts=[];
-  ttsClean(t).split(/(?<=[.!?])\s+/).forEach(seg=>{
-    const q=/\?\s*$/.test(seg), body=seg.replace(/[.!?,\s]+$/,'');
-    if(!body) return;
-    if(q&&body.length>3){ parts.push({t:body.slice(0,-2),p:1,r:1},{t:body.slice(-2),p:1.6,r:.9}); }
-    else parts.push({t:body,p:1,r:1});
-  });
-  speechSynthesis.cancel();
-  parts.forEach(x=>{
-    const u=new SpeechSynthesisUtterance(x.t);
-    if(v){u.voice=v;u.lang=v.lang;} else u.lang='ko-KR';
-    u.rate=S.rate*x.r; u.pitch=x.p; speechSynthesis.speak(u);
-  });
+  const u=new SpeechSynthesisUtterance(ttsClean(t));
+  if(v){u.voice=v;u.lang=v.lang;} else u.lang='ko-KR';
+  u.rate=S.rate; speechSynthesis.cancel(); speechSynthesis.speak(u);
 }
 function say(id,force){
-  const pool=POOLS[id]; if(!pool||(!force&&Math.random()>S.freq)) return;
+  let pool=POOLS[id]; if(!pool||(!force&&Math.random()>S.freq)) return;
+  if(LAUGH.has(id)&&Math.random()<.3) pool=POOLS.laugh; else if(CHEER.has(id)&&Math.random()<.25) pool=POOLS.cheer; else if((id==='endAiWin'||id==='endHumanWin')&&Math.random()<.4) pool=POOLS.endCheer;
   mount();
   let c=pool.filter(t=>!recent.includes(t)); if(!c.length) c=pool;
   const t=c[Math.floor(Math.random()*c.length)];
