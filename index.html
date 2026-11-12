@@ -7981,7 +7981,7 @@ let lastAiCheck=false;
 function onMove(prev,move,cap,mover,nb){
   mount(); const human=state.humanSide, ai=opponent(human), moverAI=mover===ai, next=state.turn;
   const chk=isInCheck(nb,next), wasCap=prevCap, wasChk=lastAiCheck; prevCap=!!cap;
-  const pc=nb[move.to.r][move.to.c], d=matDiff(nb,ai), early=state.log.length<10;
+  const pc=nb[move.to.r][move.to.c], d=matDiff(nb,ai), early=state.log.length<10, nt=newTags(prev,nb,mover,move);
   if(moverAI){
     turnStart=Date.now(); urgeAt=12000; urgeN=0; histLen=state.history.length; lastAiCheck=chk;
     if(chk){
@@ -7991,9 +7991,11 @@ function onMove(prev,move,cap,mover,nb){
     }else if(cap){ if(wasCap) say('bait',true); else sayMix('aiCap'+cap.type,big(cap.type)?'aiCapBig':'aiCapSmall'); }
     else{
       const th=threats(nb,ai,move);
-      if(th.length>=2) say('aiFork',true);
+      const mk=nt.filter(x=>x==='마멱'||x==='상멱'); if(mk.length&&Math.random()<.6) sayForm(mk,true,nb);
+      else if(th.length>=2) say('aiFork',true);
       else if(th.length===1&&th[0].type!=='S') say({R:'aiThreatR',C:'aiThreatC',H:'aiThreatH',E:'aiThreatE'}[th[0].type]||'aiTaunt',true);
-      else if(early) sayAny(['openProbe','openForm']); else if(d>=16) say('winningBig'); else if(d>=8) say('winning');
+      else if(nt.length) sayForm(nt,true,nb);
+      else if(early) sayAny(['openProbe']); else if(d>=16) say('winningBig'); else if(d>=8) say('winning');
       else if(d<=-16) say('losingBig'); else if(d<=-8) say('losing');
       else if(d>=3) say(rnd(['aiTauntWin','aiTaunt']));
       else say(rnd(state.log.length<14?['watchOpen','aiTaunt']:pieceCount(nb)<=10?['watchEnd','aiTaunt']:['watchMid','aiTaunt']));
@@ -8005,6 +8007,7 @@ function onMove(prev,move,cap,mover,nb){
     else if(cap){ if(big(cap.type)) sayMix('humanCap'+cap.type,'humanCapBig'); else sayAny(['humanCap'+cap.type,'humanCounter','baitTaken'],true); }
     else if(h>=130) say('humanBlunder',true);
     else if(h>=50) say('humanBlunderMild',true);
+    else if(nt.length) sayForm(nt,false,nb);
     else if(wasChk) say('humanDefend',true);
     else if(early) sayAny(['openProbe','openPraise','openForm']);
     else if(d<=-4) say(rnd(['humanRespect','aiSurprise']));
@@ -8013,19 +8016,101 @@ function onMove(prev,move,cap,mover,nb){
 }
 function sayAny(l,f){ const v=l.filter(id=>POOLS[id]&&POOLS[id].length); if(v.length) say(rnd(v),f); }
 function sayMix(a,b){ say(POOLS[a]&&POOLS[a].length&&Math.random()<.6?a:b,true); }
-function formOf(b,side){ let o=0,i=0; for(const row of b) row.forEach((p,c)=>{ if(p&&p.side===side&&p.type==='H'){ if(c===1||c===7) o++; else if(c===2||c===6) i++; } }); return {o,i}; }
-function fname(f){ return f.i===2?'원앙마':f.o===2?'귀마':(f.o===1&&f.i===1)?'혼합':null; }
-function buildForm(){
-  const hs=state.humanSide, nh=fname(formOf(state.board,hs)), na=fname(formOf(state.board,opponent(hs))), L=[];
-  if(nh==='원앙마') L.push('원앙마 스타일이야?','원앙마로 시작했네.','원앙마 차림이구나.');
-  if(nh==='귀마') L.push('귀마 스타일이야?','귀마로 시작했네.','양쪽 다 귀마네.');
-  if(nh==='혼합') L.push('귀마와 원앙마를 섞었네.','한쪽은 귀마, 한쪽은 원앙마네.');
-  if(nh&&na){ L.push(nh===na?'서로 같은 차림이네, 실력 승부겠다.':'서로 차림이 다르네, 재밌겠다.'); if(nh===na&&nh!=='혼합') L.push(nh+' 대 '+nh+'네.'); }
-  POOLS.openForm=L;
+const lastOwn={};
+const same=(a,b)=>!!a&&!!b&&a.r===b.r&&a.c===b.c;
+function guard(b,a,z){
+  const dr=z.r-a.r, dc=z.c-a.c, ar=Math.abs(dr), ac=Math.abs(dc);
+  if(!((ar===1&&ac===2)||(ar===2&&ac===1))) return false;
+  const lr=ac===2?a.r:a.r+Math.sign(dr), lc=ac===2?a.c+Math.sign(dc):a.c;
+  return !b[lr][lc];
+}
+function clearLine(b,a,z){
+  if(a.r===z.r){ for(let c=Math.min(a.c,z.c)+1;c<Math.max(a.c,z.c);c++) if(b[a.r][c]) return false; return true; }
+  if(a.c===z.c){ for(let r=Math.min(a.r,z.r)+1;r<Math.max(a.r,z.r);r++) if(b[r][a.c]) return false; return true; }
+  return false;
+}
+// 포진 판별: 귀=궁성 앞줄 좌우 꼭지점, 윗=그 앞 칸, 면=궁성 앞줄 중앙
+function tagsOf(b,side){
+  const rb=side==='han'?0:9, d=side==='han'?1:-1, rf=rb+2*d, ru=rf+d, sr=side==='han'?3:6, t=new Set(), H=[], R=[];
+  const own=(r,c,ty)=>{ const p=b[r]&&b[r][c]; return !!p&&p.side===side&&p.type===ty; };
+  for(const c of [3,5]){ if(own(rf,c,'H')) t.add('귀마'); if(own(rf,c,'C')) t.add('귀포'); if(own(rf,c,'E')) t.add('귀상'); if(own(ru,c,'E')) t.add('귀윗상'); }
+  if(own(rf,4,'C')) t.add('면포'); if(own(rf,4,'E')) t.add('면상'); if(own(rf,4,'H')) t.add('면마');
+  for(let r=0;r<10;r++) for(let c=0;c<9;c++){
+    const p=b[r][c]; if(!p||p.side!==side) continue;
+    if(p.type==='H') H.push({r,c});
+    else if(p.type==='R') R.push({r,c});
+    else if(p.type==='S'&&c===4&&r!==sr) t.add('중앙병졸');
+    else if(p.type==='E'&&c===4) t.add('중앙상');
+    else if(p.type==='G'){ if(r===rb) t.add('안궁'); else if(r===rb+d&&(c===3||c===5)) t.add('삐뚤궁'); else if(r===rf) t.add('천궁'); }
+  }
+  if(H.length===2&&guard(b,H[0],H[1])&&guard(b,H[1],H[0])) t.add('원앙마');
+  if(R.length===2&&clearLine(b,R[0],R[1])) t.add('양차합세');
+  return t;
+}
+const NAME={귀마:'귀마',귀포:'귀포',귀윗상:'귀윗상',면포:'면포',면상:'면상',면마:'면마',중앙상:'중앙상',안궁:'안궁',삐뚤궁:'삐뚤궁',양차합세:'양차 합세',원앙마:'원앙마',원위치:'원위치',천궁:'천궁',귀상:'귀상',마멱:'마멱',상멱:'상멱'};
+const FH={
+ 귀마:['귀마를 올렸네.','마를 귀에 올렸구나.','귀마 포진이야?'],
+ 귀포:['귀포를 놓았네.','포를 귀에 놓았구나.','귀포로 가는 거야?'],
+ 귀윗상:['귀윗상이네.','상을 귀윗자리에 올렸네.','귓상으로 가는구나.'],
+ 면포:['면포를 놓았네.','궁성 앞 중앙에 포를 놓는구나.','면포 스타일이야?'],
+ 면상:['면상이네.','상을 궁성 앞 중앙에 놓았네.','면상으로 가는 거야?'],
+ 면마:['면마를 놓았네.','마를 궁성 앞 중앙에 놓는구나.'],
+ 중앙병졸:['$N이 나왔네.','가운데 줄에서 $N을 올리는구나.'],
+ 중앙상:['중앙상이네.','상이 가운데 줄로 나왔네.'],
+ 안궁:['안궁이네, 궁을 바닥까지 내렸어.','궁을 바닥라인으로 내리는구나.'],
+ 삐뚤궁:['삐뚤궁이네.','궁을 옆 줄로 옮겼구나.'],
+ 양차합세:['차끼리 서로 지켜 주고 있네.','양차 합세구나.'],
+ 원앙마:['원앙마네, 마가 서로 지켜 주고 있어.','마끼리 서로 지켜 주는구나.','원앙마 스타일이야?'],
+ 원위치:['다시 원위치네.','돌아왔네, 원위치.'],
+ 천궁:['천궁이네, 궁을 앞줄로 올렸어.','궁을 올렸네, 천궁이야.','천궁으로 가는구나.'],
+ 귀상:['귀상이네.','상을 귀에 올렸네.','귀상으로 가는구나.'],
+ 마멱:['마멱을 막았네.','마멱을 눌러 놨구나.','마멱 막아 주는구나.','차로 마멱을 막네.','마멱 막고 들어오는구나.'],
+ 상멱:['상멱을 막았네.','상멱을 눌러 놨구나.','상멱 막아 주는구나.','차로 상멱을 막네.','상멱 막고 들어오는구나.']
+};
+const FA={
+ 귀마:['귀마 간다.','마를 귀에 올립니다.','귀마로 갑니다.'],
+ 귀포:['귀포 놓습니다.','포를 귀에 놓겠습니다.'],
+ 귀윗상:['귀윗상으로 갑니다.','상을 귀윗자리에 올립니다.'],
+ 면포:['면포 놓습니다.','궁성 앞 중앙에 포를 놓겠습니다.'],
+ 면상:['면상으로 갑니다.','상을 궁성 앞 중앙에 놓습니다.'],
+ 면마:['면마 놓습니다.','마를 궁성 앞 중앙에 놓겠습니다.'],
+ 중앙병졸:['$N을 올립니다.','가운데 줄 $N부터 갑니다.'],
+ 중앙상:['상을 가운데 줄로 내보냅니다.','중앙상 갑니다.'],
+ 안궁:['안궁 갑니다.','궁을 바닥라인으로 내립니다.'],
+ 삐뚤궁:['삐뚤궁으로 갑니다.','궁을 옆 줄로 옮깁니다.'],
+ 양차합세:['양차 합세 갑니다.','차끼리 서로 지켜 줍니다.'],
+ 원앙마:['원앙마 만듭니다.','마끼리 서로 지켜 줍니다.'],
+ 원위치:['원위치합니다.','다시 돌아갑니다.'],
+ 천궁:['천궁 갑니다.','궁을 앞줄로 올립니다.','궁을 올려 봅니다.'],
+ 귀상:['귀상 갑니다.','상을 귀에 올립니다.','귀상으로 갑니다.'],
+ 마멱:['마멱 막을게.','마멱 눌러 줄게.','마멱을 막아 줍니다.','마멱 막고 갑니다.','여기서 마멱 막아 주고.','차로 마멱을 눌러 놓는다.'],
+ 상멱:['상멱 막을게.','상멱 눌러 줄게.','상멱을 막아 줍니다.','상멱 막고 갑니다.','여기서 상멱 막아 주고.','차로 상멱을 눌러 놓는다.']
+};
+const yi=n=>((n.charCodeAt(n.length-1)-0xAC00)%28?'이네':'네');
+function sayForm(nt,byAI,nb){
+  const t=rnd(nt), me=byAI?opponent(state.humanSide):state.humanSide, you=opponent(me);
+  const n=t==='중앙병졸'?(me==='cho'?'중앙병':'중앙졸'):NAME[t];
+  let L;
+  if(t!=='중앙병졸'&&t!=='원위치'&&tagsOf(nb,you).has(t)&&Math.random()<.5) L=['서로 '+n+yi(n)+'.',n+' 대 '+n+yi(n)+'.'];
+  else L=(byAI?FA:FH)[t].map(x=>x.replace(/\$N/g,n));
+  POOLS.__form=L; say('__form',true);
+}
+function newTags(prev,nb,mover,move){
+  const a=tagsOf(prev,mover), r=[...tagsOf(nb,mover)].filter(x=>!a.has(x));
+  const lo=lastOwn[mover]; if(lo&&same(lo.to,move.from)&&same(lo.from,move.to)) r.push('원위치');
+  const mp=nb[move.to.r][move.to.c];
+  if(mp&&mp.type==='R'){
+    const f=new Set();
+    for(const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const q=nb[move.to.r+dr]&&nb[move.to.r+dr][move.to.c+dc];
+      if(q&&q.side!==mover){ if(q.type==='H') f.add('마멱'); if(q.type==='E') f.add('상멱'); }
+    }
+    r.push(...f);
+  }
+  lastOwn[mover]={from:move.from,to:move.to}; return r;
 }
 function onStart(){ mount(); recent.length=0; prevCap=false; turnStart=Date.now(); urgeAt=12000; urgeN=0; lastAiCheck=false;
-  try{ buildForm(); }catch(e){ POOLS.openForm=[]; }
-  say(POOLS.openForm.length&&Math.random()<.6?'openForm':'start',true); }
+  for(const k in lastOwn) delete lastOwn[k]; POOLS.openForm=[]; say('start',true); }
 function onEnd(winner){ say(winner===state.humanSide?'endHumanWin':'endAiWin',true); }
 
 setInterval(()=>{
