@@ -7980,7 +7980,7 @@ function threats(nb,ai,move){
 let lastAiCheck=false;
 function onMove(prev,move,cap,mover,nb){
   mount(); const human=state.humanSide, ai=opponent(human), moverAI=mover===ai, next=state.turn;
-  const chk=isInCheck(nb,next), wasCap=prevCap, wasChk=lastAiCheck; prevCap=!!cap;
+  const chk=isInCheck(nb,next), wasCap=prevCap, wasChk=lastAiCheck, lc=lastCapInfo; prevCap=!!cap; lastCapInfo=cap?{type:cap.type,mover}:null;
   const pc=nb[move.to.r][move.to.c], d=matDiff(nb,ai), early=state.log.length<10, nt=newTags(prev,nb,mover,move);
   if(moverAI){
     turnStart=Date.now(); urgeAt=12000; urgeN=0; histLen=state.history.length; lastAiCheck=chk;
@@ -7988,7 +7988,7 @@ function onMove(prev,move,cap,mover,nb){
       if(genLegalMoves(nb,next).length<=2) say('aiCheckNarrow',true);
       else if(cap) say('aiCheckCap',true);
       else sayMix({R:'aiCheckR',C:'aiCheckC',H:'aiCheckH',E:'aiCheckE',S:'aiCheckS'}[pc&&pc.type],'aiCheck');
-    }else if(cap){ if(wasCap) say('bait',true); else sayMix('aiCap'+cap.type,big(cap.type)?'aiCapBig':'aiCapSmall'); }
+    }else if(cap){ if(sayCapExtra(true,mover,pc,cap,nb,move,lc)){} else if(wasCap) say('bait',true); else sayMix('aiCap'+cap.type,big(cap.type)?'aiCapBig':'aiCapSmall'); }
     else{
       const th=threats(nb,ai,move);
       const mk=nt.filter(x=>x==='마멱'||x==='상멱'); if(mk.length&&Math.random()<.6) sayForm(mk,true,nb);
@@ -8004,7 +8004,7 @@ function onMove(prev,move,cap,mover,nb){
     lastAiCheck=false;
     const h=chk||cap?0:hangVal(nb,ai,human);
     if(chk) say('humanCheck',true);
-    else if(cap){ if(big(cap.type)) sayMix('humanCap'+cap.type,'humanCapBig'); else sayAny(['humanCap'+cap.type,'humanCounter','baitTaken'],true); }
+    else if(cap){ if(sayCapExtra(false,mover,pc,cap,nb,move,lc)){} else if(big(cap.type)) sayMix('humanCap'+cap.type,'humanCapBig'); else sayAny(['humanCap'+cap.type,'humanCounter','baitTaken'],true); }
     else if(h>=130) say('humanBlunder',true);
     else if(h>=50) say('humanBlunderMild',true);
     else if(nt.length) sayForm(nt,false,nb);
@@ -8013,6 +8013,29 @@ function onMove(prev,move,cap,mover,nb){
     else if(d<=-4) say(rnd(['humanRespect','aiSurprise']));
     else say(rnd(d<=0?['humanGood','aiTaunt','aiSurprise']:['humanGood','aiTaunt']));
   }
+}
+let lastCapInfo=null;
+const PN=(t,side)=>({R:'차',C:'포',H:'마',E:'상',A:'사',S:side==='cho'?'병':'졸'}[t]);
+function taName(mover,pc,cap){
+  if(!pc||pc.type===cap.type) return null;
+  const a=PN(pc.type,mover), v=PN(cap.type,cap.side||opponent(mover));
+  return a&&v?a+v+'타':null;
+}
+const TA_A=['$T!','$T 갑니다.','$T로 챙깁니다.','$T 들어갑니다.'];
+const TA_H=['$T네.','$T를 하네.','$T로 가는구나.','$T로 받았네.'];
+// 차대=차끼리 교환(서로의 차가 죽음), X Y타=X가 Y를 취함
+function sayCapExtra(byAI,mover,pc,cap,nb,move,lc){
+  if(cap.type==='R'&&lc&&lc.type==='R'&&lc.mover!==mover){
+    POOLS.__cap=['차대가 됐네.','차끼리 서로 바꿨네.','서로 차가 죽었네.','차대 성립이네.']; say('__cap',true); return true;
+  }
+  if(cap.type==='R'&&pc&&pc.type==='R'&&genLegalMoves(nb,opponent(mover)).some(m=>m.to.r===move.to.r&&m.to.c===move.to.c)){
+    POOLS.__cap=byAI?['차대 들어갑니다.','차대 하자.','차끼리 바꾸자.','차대로 풀어 가자.','차대 신청합니다.']
+                    :['차대를 거네.','차대 하자는 거야?','차끼리 바꾸자는 거지?','차대로 가는구나.'];
+    say('__cap',true); return true;
+  }
+  const t=taName(mover,pc,cap);
+  if(t&&Math.random()<.5){ POOLS.__cap=(byAI?TA_A:TA_H).map(x=>x.replace('$T',t)); say('__cap',true); return true; }
+  return false;
 }
 function sayAny(l,f){ const v=l.filter(id=>POOLS[id]&&POOLS[id].length); if(v.length) say(rnd(v),f); }
 function sayMix(a,b){ say(POOLS[a]&&POOLS[a].length&&Math.random()<.6?a:b,true); }
@@ -8109,7 +8132,7 @@ function newTags(prev,nb,mover,move){
   }
   lastOwn[mover]={from:move.from,to:move.to}; return r;
 }
-function onStart(){ mount(); recent.length=0; prevCap=false; turnStart=Date.now(); urgeAt=12000; urgeN=0; lastAiCheck=false;
+function onStart(){ mount(); recent.length=0; prevCap=false; lastCapInfo=null; turnStart=Date.now(); urgeAt=12000; urgeN=0; lastAiCheck=false;
   for(const k in lastOwn) delete lastOwn[k]; POOLS.openForm=[]; say('start',true); }
 function onEnd(winner){ say(winner===state.humanSide?'endHumanWin':'endAiWin',true); }
 
