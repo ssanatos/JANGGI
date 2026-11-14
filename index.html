@@ -7831,6 +7831,25 @@ const Z2={
  endHumanWin:['잘 뒀습니다. 넘어갈게요.','졌습니다. 다음 판 가죠.','아, 완벽하게 당했네요.']
 };
 for(const k in Z2) POOLS[k]=[...new Set([...(POOLS[k]||[]),...Z2[k]])];
+const Z3={
+ start:['자, 한번 찐으로 가 볼게.','전력을 다 하겠습니다.','첫 판부터 제대로 가자.','이번엔 정상적으로 두자.'],
+ aiTaunt:['절대 예상 못 할 방법으로 가 볼게.','미친 수가 될까, 미친 짓이 될까.','엄살 좀 그만 부려, 무섭게.','정신 바짝 차려라.','조금 공격적으로 가 볼까?','계속 수비만 할 순 없지, 한 방 날려 줘야지.','한 번 크게 흔들어 볼까?'],
+ aiTauntWin:['데미지가 계속 쌓이고 있어.'],
+ watchMid:['일단 참고 기다리자.','뭔가 레전드가 하나 나올 것 같은데?','먼저 움직이면 약점이 되는 구간이야.','서로 범위 안에 있네.','장기가 자꾸 산으로 가네.'],
+ winning:['역시 공격적으로 하니까 훨씬 낫네.','작전 성공입니다.'],
+ losing:['하하, 여기서 당해 버렸네. 아깝다.','이건 답이 없네.','이번 판은 너무 못 뒀다.','이거 큰일 났다.'],
+ aiSurprise:['이런 수는 정말 오랜만에 보네.','오히려 좋아.','진짜 어렵네요.','뒷맛이 아프네.','데미지가 너무 큰데.','불편하다, 불편해.','와, 진짜 어렵다.','어허, 아쉽네. 아깝게.','잠깐 집중, 집중.'],
+ humanGood:['생각보다 잘 두는데?','좀 하시네.','상대분 재밌게 두시네.','진짜 좀 치시네, 재밌다.'],
+ humanDefend:['안 속네.','안 속는구나, 큰일 났다.'],
+ humanRespect:['이 분은 인정이야, 진짜 실력자네.','빈틈이 없는데?','기물 연계가 너무 좋은데?','진짜 찐 실력자다.'],
+ humanBlunder:['욕심을 너무 부렸네.'],
+ humanBlunderMild:['너무 쫄았네.','수순을 반대로 했네.'],
+ aiCapBig:['깔끔하게 잡아 줍니다.'],
+ aiCapSmall:['깔끔하게 잡아 줍니다.'],
+ endAiWin:['수고했습니다.','수고했습니다, 다음 판 가시죠.'],
+ endHumanWin:['오늘은 인정, 진짜 잘 두시네.']
+};
+for(const k in Z3) POOLS[k]=[...new Set([...(POOLS[k]||[]),...Z3[k]])];
 
 // ── 사실 검증: 기물·포진·장군 등 "판 위 사실"을 말하는 멘트는 해당 상황 묶음에서만 허용 ──
 const Cur={
@@ -7987,7 +8006,7 @@ function onMove(prev,move,cap,mover,nb){
     if(chk){
       if(genLegalMoves(nb,next).length<=2) say('aiCheckNarrow',true);
       else if(cap) say('aiCheckCap',true);
-      else sayMix({R:'aiCheckR',C:'aiCheckC',H:'aiCheckH',E:'aiCheckE',S:'aiCheckS'}[pc&&pc.type],'aiCheck');
+      else { if(pc&&pc.type==='S') POOLS.aiCheckS=sCheck(mover); sayMix({R:'aiCheckR',C:'aiCheckC',H:'aiCheckH',E:'aiCheckE',S:'aiCheckS'}[pc&&pc.type],'aiCheck'); }
     }else if(cap){ if(sayCapExtra(true,mover,pc,cap,nb,move,lc)){} else if(wasCap) say('bait',true); else sayMix('aiCap'+cap.type,big(cap.type)?'aiCapBig':'aiCapSmall'); }
     else{
       const th=threats(nb,ai,move);
@@ -8005,7 +8024,7 @@ function onMove(prev,move,cap,mover,nb){
   }else{
     lastAiCheck=false; let ev=[];
     const h=chk||cap?0:hangVal(nb,ai,human);
-    if(chk) say('humanCheck',true);
+    if(chk) humanCheckSay(pc,mover);
     else if(cap){ if(sayCapExtra(false,mover,pc,cap,nb,move,lc)){} else if(big(cap.type)) sayMix('humanCap'+cap.type,'humanCapBig'); else sayAny(['humanCap'+cap.type,'humanCounter','baitTaken'],true); }
     else if(h>=130) say('humanBlunder',true);
     else if(h>=50) say('humanBlunderMild',true);
@@ -8121,6 +8140,17 @@ function sayEv(e,byAI){
   }
   POOLS.__ev=L; say('__ev',true);
 }
+function sCheck(mover){ const n=mover==='cho'?'병':'졸', j=n==='병'?'으로':'로';
+  return [n+'장 들어갑니다.',n+'장이다, 막아 봐.',n+j+' 장군!',n+'도 장군은 부를 수 있지.']; }
+function humanCheckSay(pc,mover){
+  const n=pc?({R:'차',C:'포',H:'마',E:'상',S:mover==='cho'?'병':'졸'})[pc.type]:null;
+  if(n&&Math.random()<.6){ POOLS.__hc=[n+'장이네.',n+'장이라니.',n+'장을 부르네.']; say('__hc',true); }
+  else say('humanCheck',true);
+}
+function arrName(b,side){
+  const r=side==='han'?0:9, q=[1,2,6,7].map(c=>{ const p=b[r][c]; return p&&p.side===side?p.type:'?'; }).join('');
+  return ({HEEH:'원앙마',HEHE:'귀마',EHEH:'귀마',EHHE:'양귀마'})[q]||null;
+}
 function sayAny(l,f){ const v=l.filter(id=>POOLS[id]&&POOLS[id].length); if(v.length) say(rnd(v),f); }
 function sayMix(a,b){ say(POOLS[a]&&POOLS[a].length&&Math.random()<.6?a:b,true); }
 const lastOwn={};
@@ -8154,7 +8184,7 @@ function tagsOf(b,side){
   if(R.length===2&&clearLine(b,R[0],R[1])) t.add('양차합세');
   return t;
 }
-const NAME={귀마:'귀마',귀포:'귀포',귀윗상:'귀윗상',면포:'면포',면상:'면상',면마:'면마',중앙상:'중앙상',안궁:'안궁',삐뚤궁:'삐뚤궁',양차합세:'양차 합세',원앙마:'원앙마',원위치:'원위치',천궁:'천궁',귀상:'귀상',마멱:'마멱',상멱:'상멱'};
+const NAME={귀마:'귀마',귀포:'귀포',귀윗상:'귀윗상',면포:'면포',면상:'면상',면마:'면마',중앙상:'중앙상',안궁:'안궁',삐뚤궁:'삐뚤궁',양차합세:'양차 합세',원앙마:'원앙마',원위치:'원위치',하포:'하포',천궁:'천궁',귀상:'귀상',마멱:'마멱',상멱:'상멱'};
 const FH={
  귀마:['귀마를 올렸네.','마를 귀에 올렸구나.','귀마 포진이야?'],
  귀포:['귀포를 놓았네.','포를 귀에 놓았구나.','귀포로 가는 거야?'],
@@ -8169,6 +8199,7 @@ const FH={
  양차합세:['차끼리 서로 지켜 주고 있네.','양차 합세구나.'],
  원앙마:['원앙마네, 마가 서로 지켜 주고 있어.','마끼리 서로 지켜 주는구나.','원앙마 스타일이야?'],
  원위치:['다시 원위치네.','돌아왔네, 원위치.'],
+ 하포:['하포를 했네.','포를 바닥라인으로 내렸구나.','하포로 가는구나.'],
  천궁:['천궁이네, 궁을 앞줄로 올렸어.','궁을 올렸네, 천궁이야.','천궁으로 가는구나.'],
  귀상:['귀상이네.','상을 귀에 올렸네.','귀상으로 가는구나.'],
  마멱:['마멱을 막았네.','마멱을 눌러 놨구나.','마멱 막아 주는구나.','차로 마멱을 막네.','마멱 막고 들어오는구나.'],
@@ -8188,6 +8219,7 @@ const FA={
  양차합세:['양차 합세 갑니다.','차끼리 서로 지켜 줍니다.'],
  원앙마:['원앙마 만듭니다.','마끼리 서로 지켜 줍니다.'],
  원위치:['원위치합니다.','다시 돌아갑니다.'],
+ 하포:['하포 갑니다.','포를 바닥라인으로 내립니다.','하포합니다.'],
  천궁:['천궁 갑니다.','궁을 앞줄로 올립니다.','궁을 올려 봅니다.'],
  귀상:['귀상 갑니다.','상을 귀에 올립니다.','귀상으로 갑니다.'],
  마멱:['마멱 막을게.','마멱 눌러 줄게.','마멱을 막아 줍니다.','마멱 막고 갑니다.','여기서 마멱 막아 주고.','차로 마멱을 눌러 놓는다.'],
@@ -8206,6 +8238,7 @@ function newTags(prev,nb,mover,move){
   const a=tagsOf(prev,mover), r=[...tagsOf(nb,mover)].filter(x=>!a.has(x));
   const lo=lastOwn[mover]; if(lo&&same(lo.to,move.from)&&same(lo.from,move.to)) r.push('원위치');
   const mp=nb[move.to.r][move.to.c];
+  if(mp&&mp.type==='C'&&move.to.r===(mover==='han'?0:9)&&move.from.r!==move.to.r) r.push('하포');
   if(mp&&mp.type==='R'){
     const f=new Set();
     for(const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){
@@ -8217,7 +8250,10 @@ function newTags(prev,nb,mover,move){
   lastOwn[mover]={from:move.from,to:move.to}; return r;
 }
 function onStart(){ mount(); recent.length=0; prevCap=false; lastCapInfo=null; turnStart=Date.now(); urgeAt=12000; urgeN=0; lastAiCheck=false;
-  for(const k in lastOwn) delete lastOwn[k]; POOLS.openForm=[]; say('start',true); }
+  for(const k in lastOwn) delete lastOwn[k]; POOLS.openForm=[];
+  const c=arrName(state.board,'cho'), h=arrName(state.board,'han');
+  if(c&&h&&Math.random()<.85){ POOLS.__arr=[c+' 대 '+h+'.',c+' 대 '+h+'네.',c+' 대 '+h+'로 시작합니다.',c+' 대 '+h+', 어디 보자.']; say('__arr',true); }
+  else say('start',true); }
 function onEnd(winner){ say(winner===state.humanSide?'endHumanWin':'endAiWin',true); }
 
 setInterval(()=>{
