@@ -8006,8 +8006,11 @@ function onMove(prev,move,cap,mover,nb){
     if(chk){
       if(genLegalMoves(nb,next).length<=2) say('aiCheckNarrow',true);
       else if(cap) say('aiCheckCap',true);
-      else { if(pc&&pc.type==='S') POOLS.aiCheckS=sCheck(mover); sayMix({R:'aiCheckR',C:'aiCheckC',H:'aiCheckH',E:'aiCheckE',S:'aiCheckS'}[pc&&pc.type],'aiCheck'); }
-    }else if(cap){ if(sayCapExtra(true,mover,pc,cap,nb,move,lc)){} else if(wasCap) say('bait',true); else sayMix('aiCap'+cap.type,big(cap.type)?'aiCapBig':'aiCapSmall'); }
+      else { const ck=checkInfo(nb,mover,move), ty=ck.direct?(pc&&pc.type):null;
+        if(ty==='S') POOLS.aiCheckS=sCheck(mover);
+        if(ty) sayMix({R:'aiCheckR',C:'aiCheckC',H:'aiCheckH',E:'aiCheckE',S:'aiCheckS'}[ty],'aiCheck');
+        else { const L=ck.types.length?discLines(ck,mover,true):null; if(L&&Math.random()<.7){ POOLS.__dc=L; say('__dc',true); } else say('aiCheck',true); } }
+    }else if(cap){ if(sayPairDead(true,mover,cap,prev,nb)||sayCapExtra(true,mover,pc,cap,nb,move,lc)){} else if(wasCap) say('bait',true); else sayMix('aiCap'+cap.type,big(cap.type)?'aiCapBig':'aiCapSmall'); }
     else{
       const th=threats(nb,ai,move);
       const ev=boardEvents(prev,nb,mover,move,pc), mk=nt.filter(x=>x==='마멱'||x==='상멱');
@@ -8019,13 +8022,13 @@ function onMove(prev,move,cap,mover,nb){
       else if(early) sayAny(['openProbe']); else if(d>=16) say('winningBig'); else if(d>=8) say('winning');
       else if(d<=-16) say('losingBig'); else if(d<=-8) say('losing');
       else if(d>=3) say(rnd(['aiTauntWin','aiTaunt']));
-      else say(rnd(state.log.length<14?['watchOpen','aiTaunt']:pieceCount(nb)<=10?['watchEnd','aiTaunt']:['watchMid','aiTaunt']));
+      else { const ps=pairState(nb); if(ps.length&&Math.random()<.3){ POOLS.__ps=ps; say('__ps',true); } else say(rnd(state.log.length<14?['watchOpen','aiTaunt']:pieceCount(nb)<=10?['watchEnd','aiTaunt']:['watchMid','aiTaunt'])); }
     }
   }else{
     lastAiCheck=false; let ev=[];
     const h=chk||cap?0:hangVal(nb,ai,human);
-    if(chk) humanCheckSay(pc,mover);
-    else if(cap){ if(sayCapExtra(false,mover,pc,cap,nb,move,lc)){} else if(big(cap.type)) sayMix('humanCap'+cap.type,'humanCapBig'); else sayAny(['humanCap'+cap.type,'humanCounter','baitTaken'],true); }
+    if(chk) humanCheckSay(pc,mover,nb,move);
+    else if(cap){ if(sayPairDead(false,mover,cap,prev,nb)||sayCapExtra(false,mover,pc,cap,nb,move,lc)){} else if(big(cap.type)) sayMix('humanCap'+cap.type,'humanCapBig'); else sayAny(['humanCap'+cap.type,'humanCounter','baitTaken'],true); }
     else if(h>=130) say('humanBlunder',true);
     else if(h>=50) say('humanBlunderMild',true);
     else if((ev=boardEvents(prev,nb,mover,move,pc)).length&&Math.random()<.75) sayEv(rnd(ev),false);
@@ -8111,19 +8114,83 @@ function trapOf(b,side){
 function boardEvents(prev,nb,mover,move,pc){
   const out=[], t0=performance.now();
   try{
-    const a=tiedOf(prev,mover), z=tiedOf(nb,mover);
-    for(const [k,v] of z) if(!a.has(k)) out.push({kind:'tie',type:v.type,narrow:v.narrow,
+    const a=tiedOf(prev,mover), z=tiedOf(nb,mover), en=opponent(mover), pair=new Set();
+    for(const X of ['R','C','H','E']){
+      if(cnt(nb,en,X)!==2) continue;
+      const tn=[...z.values()].filter(v=>v.type===X).length, to=[...a.values()].filter(v=>v.type===X).length;
+      if(tn===2&&to<2){ pair.add(X); out.push({kind:'pairTie',type:X}); }
+    }
+    const ce=cannonEv(prev,nb,mover); if(ce) out.push(ce);
+    for(const [k,v] of z) if(!a.has(k)&&!pair.has(v.type)) out.push({kind:'tie',type:v.type,narrow:v.narrow,
       head:!!(pc&&pc.type==='R'&&v.narrow&&(v.type==='E'||v.type==='H')&&Math.abs(v.r-move.to.r)+Math.abs(v.c-move.to.c)===1)});
     if(performance.now()-t0<250) for(const sd of ['cho','han']){
       const a2=trapOf(prev,sd), z2=trapOf(nb,sd);
-      for(const [k,v] of z2) if(!a2.has(k)) out.push({kind:'trap',owner:sd,where:v.where});
+      const bothNew=z2.size===2&&cnt(nb,sd,'R')===2&&a2.size<2;
+      if(bothNew) out.push({kind:'pairTrap',owner:sd});
+      else for(const [k,v] of z2) if(!a2.has(k)) out.push({kind:'trap',owner:sd,where:v.where});
     }
   }catch(e){}
   return out;
 }
+function cnt(b,side,type){ let n=0; for(const row of b) for(const p of row) if(p&&p.side===side&&p.type===type) n++; return n; }
+function cDirs(b,r,c,side){
+  const o=[];
+  for(const [dy,dx] of [[1,0],[-1,0],[0,1],[0,-1]]){
+    let y=r+dy, x=c+dx, scr=null, n=0;
+    while(y>=0&&y<10&&x>=0&&x<9){
+      const q=b[y][x];
+      if(!scr){ if(q){ if(q.type==='C') break; scr={r:y,c:x,p:q}; } }
+      else{ if(!q) n++; else{ if(q.side!==side&&q.type!=='C') n++; break; } }
+      y+=dy; x+=dx;
+    }
+    o.push({scr,n});
+  }
+  return o;
+}
+// 포다리(포가 넘는 기물)를 없애거나, 포가 갈 수 있는 길을 막았을 때
+function cannonEv(prev,nb,mover){
+  const en=opponent(mover);
+  for(let r=0;r<10;r++) for(let c=0;c<9;c++){
+    const p=nb[r][c], q=prev[r][c];
+    if(!p||p.type!=='C'||p.side!==en||!q||q.type!=='C'||q.side!==en) continue;
+    const A=cDirs(prev,r,c,en), B=cDirs(nb,r,c,en);
+    for(let i=0;i<4;i++){
+      if(A[i].n===0||A[i].n<=B[i].n) continue;
+      const s0=A[i].scr, now=nb[s0.r][s0.c];
+      return {kind:'cannon',gone:!now||now.side!==s0.p.side||now.type!==s0.p.type};
+    }
+  }
+  return null;
+}
+function pairState(nb){
+  const hs=state.humanSide, ai=opponent(hs), out=[];
+  for(const X of ['R','C','H','E']){
+    const n2='양'+PNm[X], h=cnt(nb,hs,X), a=cnt(nb,ai,X);
+    if(h===2&&a===2) out.push('서로 '+gi(n2)+' 살아있네.');
+    else if(h===2&&a<2) out.push('네 '+gi(n2)+' 살아있네.');
+    else if(a===2&&h<2) out.push('내 '+gi(n2)+' 살아있네.');
+  }
+  return out;
+}
+function sayPairDead(byAI,mover,cap,prev,nb){
+  if(!PNm[cap.type]) return false;
+  const en=opponent(mover);
+  if(cnt(nb,en,cap.type)!==0||cnt(prev,en,cap.type)!==1) return false;
+  const n2='양'+PNm[cap.type];
+  POOLS.__pd=byAI?[n2+' 제거했다.',lu(n2)+' 다 없앴다.',n2+' 정리 끝.']:['내 '+gi(n2)+' 다 죽었네.',n2+' 제거당했네.'];
+  say('__pd',true); return true;
+}
 function sayEv(e,byAI){
   let L;
-  if(e.kind==='tie'){
+  if(e.kind==='cannon'){
+    L=byAI?(e.gone?['포다리 제거!','포다리 없앴다.','포다리를 치워 버렸어.']:['포 길을 막았다.','포다리를 끊었다.','포 길 막아 주고.','포다리 끊어 놓는다.'])
+          :(e.gone?['내 포다리가 없어졌네.','포다리를 없애다니.']:['내 포 길이 막혔네.','포다리가 끊겼네.']);
+  }else if(e.kind==='pairTie'){
+    const n2='양'+PNm[e.type];
+    L=byAI?[gi(n2)+' 묶여 있네.',lu(n2)+' 묶어 놨다.']:['내 '+gi(n2)+' 묶였네.',gi(n2)+' 묶여 버렸네.'];
+  }else if(e.kind==='pairTrap'){
+    L=e.owner===state.humanSide?['네 양차가 갇혔네.','양차가 갇혔네, 나올 길이 없어.']:['내 양차가 갇혔네.','양차가 갇혔네, 큰일이다.'];
+  }else if(e.kind==='tie'){
     const X=PNm[e.type];
     if(byAI) L=e.narrow?(e.head?[X+' 머리를 눌러 놨다.','머리를 눌러서 '+gi(X)+' 갈 곳이 없네.',X+' 머리 눌렀습니다.']
         :[lu(X)+' 묶어 놨다.',eu(X)+' 갈 곳이 없네.',lu(X)+' 완전히 묶었습니다.','이제 네 '+gi(X)+' 못 움직여.'])
@@ -8140,12 +8207,31 @@ function sayEv(e,byAI){
   }
   POOLS.__ev=L; say('__ev',true);
 }
+function checkInfo(nb,mover,move){
+  const g=findGeneral(nb,opponent(mover)), o={direct:false,types:[],screen:false};
+  if(!g) return o;
+  const between=(a,b,x)=>x>Math.min(a,b)&&x<Math.max(a,b);
+  for(const m of genAllPseudoMoves(nb,mover)){
+    if(m.to.r!==g.r||m.to.c!==g.c) continue;
+    o.types.push(m.piece);
+    if(m.from.r===move.to.r&&m.from.c===move.to.c) o.direct=true;
+    if(m.piece==='C'&&((m.from.r===g.r&&move.to.r===g.r&&between(m.from.c,g.c,move.to.c))||(m.from.c===g.c&&move.to.c===g.c&&between(m.from.r,g.r,move.to.r)))) o.screen=true;
+  }
+  return o;
+}
+function discLines(ck,mover,byAI){
+  const t=rnd(ck.types), n=PN(t,mover); if(!n) return null;
+  if(t==='C'&&ck.screen) return byAI?[n+'장이다, 다리를 놓았지.','포다리를 놓고 장군!',n+'장 갑니다.']:[n+'장이네, 다리를 놓았구나.','포다리를 놓고 장군이네.',n+'장이라니.'];
+  return byAI?[n+'장 갑니다.',n+'장이다, 길을 열었어.']:[n+'장이네.',n+'장이라니.',n+'장을 부르네.'];
+}
 function sCheck(mover){ const n=mover==='cho'?'병':'졸', j=n==='병'?'으로':'로';
   return [n+'장 들어갑니다.',n+'장이다, 막아 봐.',n+j+' 장군!',n+'도 장군은 부를 수 있지.']; }
-function humanCheckSay(pc,mover){
-  const n=pc?({R:'차',C:'포',H:'마',E:'상',S:mover==='cho'?'병':'졸'})[pc.type]:null;
-  if(n&&Math.random()<.6){ POOLS.__hc=[n+'장이네.',n+'장이라니.',n+'장을 부르네.']; say('__hc',true); }
-  else say('humanCheck',true);
+function humanCheckSay(pc,mover,nb,move){
+  const ck=checkInfo(nb,mover,move);
+  let L=null;
+  if(ck.types.length&&!ck.direct) L=discLines(ck,mover,false);
+  else if(ck.types.length&&pc&&ck.types.includes(pc.type)){ const n=PN(pc.type,mover); if(n) L=[n+'장이네.',n+'장이라니.',n+'장을 부르네.']; }
+  if(L&&Math.random()<.7){ POOLS.__hc=L; say('__hc',true); } else say('humanCheck',true);
 }
 function arrName(b,side){
   const r=side==='han'?0:9, q=[1,2,6,7].map(c=>{ const p=b[r][c]; return p&&p.side===side?p.type:'?'; }).join('');
