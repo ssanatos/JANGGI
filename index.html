@@ -7850,6 +7850,17 @@ const Z3={
  endHumanWin:['오늘은 인정, 진짜 잘 두시네.']
 };
 for(const k in Z3) POOLS[k]=[...new Set([...(POOLS[k]||[]),...Z3[k]])];
+POOLS.mock=['그렇게 둔다고?','침착하게 두네?','수를 안 읽고 두는 거야?','생각을 하고 두는 거지?','생각이란 거 하고 있지?','수읽기 기능은 켜 놓은 거 맞지?','머리가 아니라 손으로 두는구나?','뇌는 집에 두고 왔나 봐?','방금 그 수, 계산이란 걸 거치긴 했어?','수읽기가 얕다 못해 바닥이 보이는데?','한 수 앞이라도 보고 두는 거야?','다음 수는 생각해 놓고 둔 거지?','그 수, 주사위 굴려서 둔 거야?','눈 감고 둬도 그것보단 잘 두겠다.','생각 좀 하고 살자, 응?','머릿속에 장기판이 있긴 해?','계산기 두드린 거 맞아? 고장 났나 봐.',
+'장기 두는 법을 알긴 하지?','기물 움직이는 법을 배우긴 했지?','어제 만난 초딩이랑 비슷하게 두네.','초딩보다 수읽기가 얕은 거 같은데?','초딩 먼저 이기고 와야 되겠는데?','이건 우리 엄마도 이렇게 안 둬.','우리 할머니가 두는 줄 알았어.','조카가 두는 줄 알았네.','설명서 한 번만 읽고 와라.','장기 책 한 권만 읽고 올래?','유치원 장기 대회 나가면 입상하겠다.','동네 평상에서 훈수 받고 와야 되겠는데?','구경하는 사람이 더 잘 두겠다.','튜토리얼 건너뛰었지?','규칙은 알고 있지? 확인차 물어봤어.',
+'뭐 하려고 거기 두는 거야?','무슨 꿍꿍이야?','계획이 있는 거야, 없는 거야?','그 수에 숨은 뜻이 있다고 믿고 싶네.','설마 이게 작전이야?','혹시 이 수가 전략이라고 우길 거야?','도대체 왜?','왜 그랬어, 진짜.','의도가 너무 깊어서 내가 이해를 못 하겠네.','이걸 노린 거야? 그럴 리가 없는데.',
+'장기 재미없게 두네.','웃기려고 하는 거야?','시원시원하게 두자 좀.','무슨 목숨 걸었어? 왜 그래?','쓸데없는 수를 잘 두네.','일부러 수 낭비를 하는 거야?','이럴 거면 차포를 떼 줄걸 그랬네.','접장기로 해야 거의 비슷하겠네.','이상한 수 두면 한 방에 나락 간다.','네 궁 안전한 거 맞아?','개그 장기 보러 온 건 아닌데.','코미디 프로를 봐도 이렇게는 안 웃겨.','재밌다, 계속 이렇게 둬 줘.','이 정도면 관객 입장료 받아야 돼.','해설자가 말을 잃었을 거야.',
+'와, 그렇게 두는 사람 처음 본다.','창의적이다, 창의적이야. 나쁜 쪽으로.','신선하다, 정말 신선해. 상한 쪽으로.','기발하네, 이해는 못 하겠지만.','독특한 감각이야, 인정은 못 해.','역시 예상을 벗어나네. 나쁜 쪽으로.','그 수 특허 내라, 아무도 안 따라 하게.','교과서에 실릴 거야. 반면교사로.','이 판은 두고두고 이야기하겠다.','박수 쳐 줄게, 짝짝짝.',
+'내가 이래서 AI인 거야.','내 연산 장치는 지금 웃는 중이야.','내 알고리즘이 방금 웃음을 터뜨렸어.','이걸로 학습 데이터 하나 늘었네, 고마워.','내 CPU가 비웃는 소리 안 들려?','나는 쉬엄쉬엄 두는데도 이길 것 같네.','손 안 대고 코 푸는 기분이야.','난 지금 커피 마시면서 두는 중이거든. 커피는 못 마시지만.',
+'다음 수는 어디로 갈 거야? 뻔한데.','그 수 두고 뿌듯했지?','지금 표정 좀 보고 싶다.','다음에도 이렇게 둘 거지? 제발.','자신 있어서 둔 거 맞지? 믿는다.','혹시 일부러 져 주는 거야?','이게 본실력이야, 아니면 컨디션이 안 좋은 거야?','지금 뭐라고 생각하면서 둔 거야?','그 수 두고 한 번 더 생각해 봤어?','오늘 장기 처음이라고 해도 믿을게.',
+'한 수 한 수가 웃음 포인트네.','집중해, 집중. 지금 웃을 때가 아니야.','나만 웃고 있는 거 아니지?',
+'아주 독창적이십니다, 감탄했습니다. 반어법입니다.','다음 수도 기대해도 될까요?','소문으로 듣던 그 수준이시군요.','저로서는 이해 불가입니다.','오늘 컨디션이 어떠세요? 아니, 왜 그러세요?',
+'장기판이 불쌍하다.','기물들이 도망가고 싶어 해.','기물들이 너한테는 안 맡기고 싶대.','판이 울고 있다.','장기판이 비명을 지른다.','기물들이 파업 선언했다.','기물들이 단체로 사직서 냈어.','장기알이 무서워서 떨고 있어.',
+'눈 감고 뒀다고 해도 믿겠다.','왼손으로 두는 거지? 그렇다고 해 줘.','발로 두는 건 아니지?','고양이가 밟고 지나간 줄 알았어.','마우스를 던졌나?','키보드에 앉았어?','손이 말을 안 듣나 봐?','장기판을 거꾸로 보고 있는 거 아니지?','혹시 장기 말고 오목 두는 중이야?','바둑 두는 줄 알았네.','체스랑 헷갈렸지?','게임 하다가 설정 잘못 만진 거 아니야?','조작법을 모르는 거야, 일부러 그러는 거야?','시간 끌더니 이게 최선이었어?','방금 그 수를 보려고 그 오랜 시간 고민한 거야?','와, 이 정도면 재능이야, 재능.','일부러 이러는 거라면 연기 대상 줘야겠다.','그 수를 두면서 웃음이 안 나왔어?','나 방금 웃음 참았어, 인정해.','다음 수가 제일 기대된다, 진심으로.'];
 
 // ── 사실 검증: 기물·포진·장군 등 "판 위 사실"을 말하는 멘트는 해당 상황 묶음에서만 허용 ──
 const Cur={
@@ -7888,7 +7899,7 @@ function toks(t){
 }
 const ALLOW={aiCheck:'KG',aiCheckR:'KRG',aiCheckC:'KCG',aiCheckH:'KHG',aiCheckE:'KEG',aiCheckS:'KSG',aiCheckNarrow:'KG',aiCheckCap:'KG',humanCheck:'KG',
  aiThreatR:'R',aiThreatC:'C',aiThreatH:'H',aiThreatE:'E',aiCapR:'R',aiCapC:'C',aiCapH:'H',aiCapE:'E',aiCapA:'A',aiCapS:'S',
- humanCapR:'R',humanCapC:'C',humanCapH:'H',humanCapE:'E',bait:'B',baitTaken:'B'};
+ humanCapR:'R',humanCapC:'C',humanCapH:'H',humanCapE:'E',bait:'B',baitTaken:'B',mock:'RCHESAGF'};
 const HOLD={};
 for(const k in POOLS){
   const al=ALLOW[k]||'', keep=[];
@@ -7896,6 +7907,7 @@ for(const k in POOLS){
   POOLS[k]=keep;
 }
 POOLS.openForm=[];
+const MOCK=new Set(['humanGood','humanCounter','humanDefend','aiTaunt','aiTauntWin','watchMid','aiSurprise']);
 const LAUGH=new Set(['humanBlunder','humanBlunderMild','bait','baitTaken','winning','winningBig','aiSurprise']);
 const CHEER=new Set(['humanGood','humanDefend','humanRespect','humanCounter']);
 const S = {bubble:true, tts:true, voice:'', rate:1.1, freq:0.65};
@@ -7965,7 +7977,7 @@ function speak(t){
 }
 function say(id,force){
   let pool=POOLS[id]; if(!pool||!pool.length||(!force&&Math.random()>S.freq)) return;
-  if(LAUGH.has(id)&&Math.random()<.3) pool=POOLS.laugh; else if(CHEER.has(id)&&Math.random()<.25) pool=POOLS.cheer; else if((id==='endAiWin'||id==='endHumanWin')&&Math.random()<.4) pool=POOLS.endCheer;
+  if(LAUGH.has(id)&&Math.random()<.3) pool=POOLS.laugh; else if(MOCK.has(id)&&Math.random()<.2) pool=POOLS.mock; else if(CHEER.has(id)&&Math.random()<.25) pool=POOLS.cheer; else if((id==='endAiWin'||id==='endHumanWin')&&Math.random()<.4) pool=POOLS.endCheer;
   mount();
   let c=pool.filter(t=>!recent.includes(t)); if(!c.length) c=pool;
   const t=c[Math.floor(Math.random()*c.length)];
@@ -8036,7 +8048,7 @@ function onMove(prev,move,cap,mover,nb){
     else if(wasChk) say('humanDefend',true);
     else if(early) sayAny(['openProbe','openPraise','openForm']);
     else if(d<=-4) say(rnd(['humanRespect','aiSurprise']));
-    else say(rnd(d<=0?['humanGood','aiTaunt','aiSurprise']:['humanGood','aiTaunt']));
+    else say(rnd(d<=0?['humanGood','aiTaunt','aiSurprise','mock','mock']:['humanGood','aiTaunt','mock','mock']));
   }
 }
 let lastCapInfo=null;
